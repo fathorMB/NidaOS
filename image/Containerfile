@@ -1,0 +1,13 @@
+# NidaOS image recipe (feasibility proof, milestone M-01).
+# The base is Fedora in the image-based form (bootc).
+FROM quay.io/fedora/fedora-bootc:45
+
+# hyperv-daemons lets a Hyper-V host read the IP address of the virtual machine.
+RUN dnf -y install hyperv-daemons && dnf clean all
+
+COPY rootfs/ /
+
+# sudo refuses a rules file that other users can write.
+RUN chmod 0440 /etc/sudoers.d/10-nida-wheel
+
+RUN bootc container lint

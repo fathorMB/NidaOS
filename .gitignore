@@ -1,0 +1,4 @@
+out/
+*.iso
+*.qcow2
+*.vhdx

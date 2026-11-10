@@ -1,0 +1,2 @@
+# The scripts run on Linux. Keep LF line ends on all systems.
+* text=auto eol=lf

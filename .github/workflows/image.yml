@@ -1,0 +1,96 @@
+name: image
+
+# Build the NidaOS image and the installer ISO. Then install the ISO in a
+# QEMU virtual machine with three disks and examine the result.
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Push the image to ghcr.io after the test
+        type: boolean
+        default: false
+  push:
+    branches: [main, "m01-*"]
+    paths:
+      - image/**
+      - installer/**
+      - scripts/**
+      - .github/workflows/image.yml
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/fathormb/nidaos
+  IMAGE_TAG: proof
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Make free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Install the test tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf xorriso socat
+
+      - name: Build the image
+        run: sudo podman build -t "$IMAGE:$IMAGE_TAG" -f image/Containerfile image
+
+      - name: Make the installer configuration
+        run: |
+          mkdir -p out
+          python3 scripts/make-installer-config.py > out/config.toml
+
+      - name: Build the installer ISO
+        run: |
+          sudo podman run --rm --privileged --pull=newer \
+            --security-opt label=type:unconfined_t \
+            -v "$PWD/out/config.toml:/config.toml:ro" \
+            -v "$PWD/out:/output" \
+            -v /var/lib/containers/storage:/var/lib/containers/storage \
+            quay.io/centos-bootc/bootc-image-builder:latest \
+            --type anaconda-iso \
+            "$IMAGE:$IMAGE_TAG"
+          sudo find out -name '*.iso' -exec ls -lh {} \;
+
+      - name: Install and test in a virtual machine
+        run: |
+          ls -l /dev/kvm
+          iso=$(sudo find out -name '*.iso' | head -n1)
+          sudo bash scripts/vm-test.sh "$iso" out/vm
+
+      - name: Collect the test results
+        if: always()
+        run: |
+          mkdir -p out/results
+          sudo sh -c 'cp out/vm/*.png out/vm/*.log out/vm/report.txt out/results/ 2>/dev/null || true'
+          sudo chmod -R a+rX out/results
+          [ -f out/results/report.txt ] && cat out/results/report.txt >> "$GITHUB_STEP_SUMMARY" || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vm-test-results
+          path: out/results
+          retention-days: 7
+
+      - name: Push the image
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | sudo podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+          sudo podman push "$IMAGE:$IMAGE_TAG"
+          sudo podman push "$IMAGE:$IMAGE_TAG" "$IMAGE:${{ github.sha }}"
