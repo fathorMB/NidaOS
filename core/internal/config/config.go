@@ -59,6 +59,16 @@ type Config struct {
 
 	// LogMaxBytes is the maximum size of the log store. 0 is no limit.
 	LogMaxBytes int64
+
+	// AuthFile keeps the owner password, the sessions and the tokens.
+	AuthFile string
+
+	// Socket is the path of the local socket (decision D18). It is empty
+	// when the value is "off".
+	Socket string
+
+	// SocketGroup is the group that can open the local socket.
+	SocketGroup string
 }
 
 // Defaults of the configuration.
@@ -76,6 +86,9 @@ const (
 	DefaultLogDir         = "/var/lib/nidaos/logs"
 	DefaultLogRetention   = 30 * 24 * time.Hour
 	DefaultLogMaxBytes    = 10 << 30 // 10 GiB
+	DefaultAuthFile       = "/var/lib/nidaos/auth.json"
+	DefaultSocket         = "/run/nidaos/core.sock"
+	DefaultSocketGroup    = "nida"
 )
 
 // DefaultJournalctl is the default command for the journal.
@@ -102,6 +115,9 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 		LogDir:          DefaultLogDir,
 		LogRetention:    DefaultLogRetention,
 		LogMaxBytes:     DefaultLogMaxBytes,
+		AuthFile:        DefaultAuthFile,
+		Socket:          DefaultSocket,
+		SocketGroup:     DefaultSocketGroup,
 	}
 
 	if v := strings.TrimSpace(getenv(Prefix + "ADDR")); v != "" {
@@ -178,6 +194,20 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 			return Config{}, fmt.Errorf("%sLOG_MAX_SIZE: %w", Prefix, err)
 		}
 		cfg.LogMaxBytes = n
+	}
+
+	if v := strings.TrimSpace(getenv(Prefix + "AUTH_FILE")); v != "" {
+		cfg.AuthFile = v
+	}
+	if v := strings.TrimSpace(getenv(Prefix + "SOCKET")); v != "" {
+		if v == "off" {
+			cfg.Socket = ""
+		} else {
+			cfg.Socket = v
+		}
+	}
+	if v := strings.TrimSpace(getenv(Prefix + "SOCKET_GROUP")); v != "" {
+		cfg.SocketGroup = v
 	}
 
 	return cfg, nil

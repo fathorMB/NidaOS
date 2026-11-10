@@ -9,9 +9,10 @@
 //
 // Commands:
 //
-//	nida-core            start the service (the same as "serve")
-//	nida-core serve      start the service
-//	nida-core version    print the version
+//	nida-core               start the service (the same as "serve")
+//	nida-core serve         start the service
+//	nida-core set-password  set the owner password (from the first line of stdin)
+//	nida-core version       print the version
 package main
 
 import (
@@ -28,6 +29,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fathorMB/NidaOS/core/internal/auth"
 	"github.com/fathorMB/NidaOS/core/internal/config"
 	"github.com/fathorMB/NidaOS/core/internal/httpserver"
 	"github.com/fathorMB/NidaOS/core/internal/logs"
@@ -54,9 +56,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "version":
 		fmt.Fprintln(stdout, version.Version)
 		return 0
+	case "set-password":
+		return runSetPassword(os.Stdin, stdout, stderr)
 	case "serve":
 	default:
-		fmt.Fprintf(stderr, "nida-core: unknown command %q (use serve or version)\n", cmd)
+		fmt.Fprintf(stderr, "nida-core: unknown command %q (use serve, set-password or version)\n", cmd)
 		return 2
 	}
 
@@ -96,8 +100,20 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 	sampler := metrics.NewSampler(cfg.Root, cfg.PodLogDir, interval, logger)
 	go sampler.Run(ctx)
 
+	// The sign-in data. Without it, the service does not start: it must
+	// not give the API without an access check.
+	authStore, err := auth.Open(cfg.AuthFile)
+	if err != nil {
+		return err
+	}
+	defer authStore.Flush()
+	if !authStore.OwnerSet() {
+		logger.Warn("the owner password is not set: set it with nida-core set-password")
+	}
+
 	pipeline := logs.NewPipeline(cfg.LogBufferLines)
 	deps := httpserver.Deps{
+		Auth:    authStore,
 		Logger:  logger,
 		State:   system.NewCollector(cfg.Root, cfg.PlanFile),
 		Metrics: sampler.Hub,
@@ -147,32 +163,54 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 		<-storeDone
 	}()
 
-	srv := &http.Server{
-		Handler:           httpserver.NewRouter(deps),
-		ReadHeaderTimeout: 10 * time.Second,
-		// No WriteTimeout: the live streams keep the connection open.
-		IdleTimeout: 120 * time.Second,
-		BaseContext: func(net.Listener) context.Context { return ctx },
+	router := httpserver.NewRouter(deps)
+	newServer := func(h http.Handler) *http.Server {
+		return &http.Server{
+			Handler:           h,
+			ReadHeaderTimeout: 10 * time.Second,
+			// No WriteTimeout: the live streams keep the connection open.
+			IdleTimeout: 120 * time.Second,
+			BaseContext: func(net.Listener) context.Context { return ctx },
+		}
+	}
+	servers := []*http.Server{newServer(router)}
+	listeners := []net.Listener{ln}
+
+	// The local socket gives the admin level without a sign-in (D18).
+	if cfg.Socket != "" {
+		sl, err := listenSocket(cfg.Socket, cfg.SocketGroup, logger)
+		if err != nil {
+			logger.Error("the local socket is not available", "path", cfg.Socket, "err", err)
+		} else {
+			defer os.Remove(cfg.Socket)
+			servers = append(servers, newServer(httpserver.WithIdentity(router, localIdentity)))
+			listeners = append(listeners, sl)
+			logger.Info("the local socket is open", "path", cfg.Socket)
+		}
 	}
 
-	errc := make(chan error, 1)
-	go func() { errc <- srv.Serve(ln) }()
+	errc := make(chan error, len(servers))
+	for i, srv := range servers {
+		go func() { errc <- srv.Serve(listeners[i]) }()
+	}
 	logger.Info("the service started", "addr", ln.Addr().String(), "version", version.Version)
 
+	var serveErr error
 	select {
-	case err := <-errc:
-		return err
+	case serveErr = <-errc:
 	case <-ctx.Done():
 	}
 
 	logger.Info("the service stops")
 	sctx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
-	if err := srv.Shutdown(sctx); err != nil {
-		return fmt.Errorf("shutdown: %w", err)
+	for _, srv := range servers {
+		if err := srv.Shutdown(sctx); err != nil && serveErr == nil {
+			serveErr = fmt.Errorf("shutdown: %w", err)
+		}
 	}
-	if err := <-errc; err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
+	if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+		return serveErr
 	}
 	logger.Info("the service stopped")
 	return nil

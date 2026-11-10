@@ -1,6 +1,6 @@
 ---
 title: Decisions
-updated: 2026-11-10
+updated: 2026-11-11
 ---
 
 # Decisions
@@ -79,3 +79,15 @@ The operator made this choice on 2026-11-10. The web console has the full logs, 
 ## D15 — Remote Desktop only in the home network
 
 The operator made this choice on 2026-11-10. The gateway does not pass Remote Desktop. From the internet, the operator uses the web console.
+
+## D16 — The owner signs in with a password
+
+The operator selected a password on 2026-11-11. NidaOS has one owner. The core service keeps only a slow hash of the password (PBKDF2 with SHA-256, from the Go standard library). Reason: it is simple and enough inside the home network. From the internet, the gateway does its own sign-in (D5). A second factor can come later.
+
+## D17 — Tokens for programs have two levels
+
+The operator selected two levels on 2026-11-11. Each token has a name and a level: `read` gives the state, the metrics and the logs; `admin` gives all the operations. The owner makes and deletes the tokens. Reason: a script that only reads cannot change the computer. M-09 adds finer rules for the agents.
+
+## D18 — The nida command on the computer uses a local socket
+
+The operator selected a local socket on 2026-11-11. The core service also listens on a socket file that only `root` and the group `nida` can open. A request through this socket has the `admin` level, without a password or a token. Reason: the operator uses the `nida` command on the computer through SSH or the desktop, and the system permissions of the file already control the access.

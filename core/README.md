@@ -18,6 +18,8 @@ The service uses only the Go standard library at this time.
 ```bash
 go run . serve     # start the service (the default command)
 go run . version   # print the version
+printf '%s
+' "$password" | go run . set-password   # set the owner password
 go test ./...      # run the tests
 ```
 
@@ -36,6 +38,9 @@ go test ./...      # run the tests
 | `NIDA_CORE_LOG_BUFFER_LINES` | `5000` | The number of log lines in memory, for the new clients and the reconnections. |
 | `NIDA_CORE_LOG_DIR` | `/var/lib/nidaos/logs` | The directory of the log store. `off` keeps the logs only in memory. |
 | `NIDA_CORE_LOG_RETENTION` | `30d` | The time that the store keeps the log lines (for example `30d` or `720h`). |
+| `NIDA_CORE_AUTH_FILE` | `/var/lib/nidaos/auth.json` | The owner password hash, the sessions and the tokens. |
+| `NIDA_CORE_SOCKET` | `/run/nidaos/core.sock` | The local socket for the `nida` command on the computer. `off` closes it. |
+| `NIDA_CORE_SOCKET_GROUP` | `nida` | The group that can open the local socket. |
 | `NIDA_CORE_LOG_MAX_SIZE` | `10G` | The maximum size of the log store. The store deletes the oldest days first. `0` is no limit. |
 
 To run the service on a development computer, use the copy of a NidaOS host in the tests:
@@ -48,7 +53,7 @@ NIDA_CORE_ROOT=internal/system/testdata/host go run .
 
 | Path | Usage |
 | --- | --- |
-| `GET /healthz` | The service is alive. |
+| `GET /healthz` | The service is alive. No sign-in. |
 | `GET /readyz` | The service can accept requests. |
 | `GET /api/v1/health` | The health, the version and the uptime, for the interfaces. |
 | `GET /api/v1/state` | The host, the disks and the tiers in one response. |
@@ -126,3 +131,35 @@ The journal reader keeps the cursor of its last entry in `journal.cursor` in the
 | `cursor` | The `next_cursor` of the previous page. |
 
 The result gives the lines, the newest first, and `next_cursor` for the next page (older lines). A cursor stays valid when new lines come. When the search reads files for more than 10 seconds, it stops, sets `partial` to `true` and gives a cursor to continue.
+
+## Sign-in and access
+
+Only these paths are open without a sign-in: `/healthz`, `/readyz`, `/api/v1/health`, `/api/v1/auth/status` and `/api/v1/auth/login`. Each other path needs one of these identities (decisions D16, D17 and D18):
+
+| Identity | How | Level |
+| --- | --- | --- |
+| The owner | `POST /api/v1/auth/login` with `{"password": "..."}` gives the cookie `nida_session`. | `admin` |
+| A program | The header `Authorization: Bearer nida_...` with a token. | `read` or `admin`, as the token |
+| The computer | A request through the local socket. | `admin` |
+
+The `read` level gives the `GET` paths of the state, the metrics and the logs. The `admin` level gives all the paths. Only `admin` can list, make and delete the tokens.
+
+| Path | Usage |
+| --- | --- |
+| `GET /api/v1/auth/status` | `{"owner_set": true}` when the owner password is set. |
+| `POST /api/v1/auth/login` | Sign in. A session closes after 30 days, or after 7 days without use. |
+| `POST /api/v1/auth/logout` | Close the session of the cookie. |
+| `GET /api/v1/auth/me` | The identity of the caller. |
+| `PUT /api/v1/auth/password` | `{"current": "...", "new": "..."}`. A new password closes all the sessions. Through the local socket, `current` is not necessary. A token cannot change the password. |
+| `GET /api/v1/tokens` | The tokens, without their secrets. |
+| `POST /api/v1/tokens` | `{"name": "laptop", "level": "read"}`. The response gives the `secret` only one time. |
+| `DELETE /api/v1/tokens/{id}` | Delete a token. Its secret stops at once. |
+
+Protections:
+
+- The service keeps only hashes: PBKDF2 with SHA-256 and 600 000 iterations for the password, SHA-256 for the sessions and the tokens. The file has the mode `0600`.
+- After 5 wrong passwords from one address, the address must wait 1 second, then 2, 4, and more, to a maximum of 15 minutes.
+- The cookie has `HttpOnly` and `SameSite=Strict`. A change with the cookie must come from the same site (the header `Origin`).
+- The local socket has the mode `0660` and the group `nida`. When the group does not exist, only `root` can open it.
+
+`nida-core set-password` reads the password from the first line of the standard input. When the service runs, the command sends the password through the local socket. When the service does not run, the command writes the auth file. The minimum length is 12 characters.

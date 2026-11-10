@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fathorMB/NidaOS/core/internal/auth"
 	"github.com/fathorMB/NidaOS/core/internal/version"
 )
 
@@ -34,6 +35,9 @@ type Router struct {
 	logs    LogSource
 	// logStore searches the old lines.
 	logStore LogSearcher
+	// auth checks the sessions and the tokens. Nil: no access check.
+	auth    Authenticator
+	limiter *auth.Limiter
 	// heartbeat is the time between two comments in a stream.
 	heartbeat time.Duration
 	started   time.Time
@@ -50,6 +54,9 @@ type Deps struct {
 	Logs    LogSource
 	// LogStore must be nil, not a nil pointer, when there is no store.
 	LogStore LogSearcher
+	// Auth checks the access to each path. Nil gives the access to all,
+	// only for the tests. main always sets it.
+	Auth Authenticator
 }
 
 // NewRouter makes the router with all the paths of the service.
@@ -61,6 +68,8 @@ func NewRouter(d Deps) *Router {
 		metrics:   d.Metrics,
 		logs:      d.Logs,
 		logStore:  d.LogStore,
+		auth:      d.Auth,
+		limiter:   auth.NewLimiter(),
 		started:   time.Now(),
 		now:       time.Now,
 		heartbeat: SSEHeartbeat,
@@ -77,6 +86,7 @@ func NewRouter(d Deps) *Router {
 	r.addMetricsRoutes()
 	r.addLogRoutes()
 	r.addLogSearchRoutes()
+	r.addAuthRoutes()
 	r.mux.HandleFunc("/", r.noRoute)
 	return r
 }
@@ -95,7 +105,9 @@ func (r *Router) handle(method, path string, h http.HandlerFunc) {
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	start := r.now()
 	rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
-	r.mux.ServeHTTP(rec, req)
+	if req, ok := r.checkAccess(rec, req); ok {
+		r.mux.ServeHTTP(rec, req)
+	}
 	r.logger.Debug("request",
 		"method", req.Method,
 		"path", req.URL.Path,

@@ -63,8 +63,13 @@ func TestLoadPaths(t *testing.T) {
 		}
 	}
 
-	cfg, err = LoadFrom(env(map[string]string{"NIDA_CORE_JOURNALCTL": "off", "NIDA_CORE_LOG_DIR": "off"}))
-	if err != nil || cfg.Journalctl != nil || cfg.LogDir != "" {
+	cfg, err = LoadFrom(env(map[string]string{"NIDA_CORE_AUTH_FILE": "/a.json", "NIDA_CORE_SOCKET": "/s.sock", "NIDA_CORE_SOCKET_GROUP": "wheel"}))
+	if err != nil || cfg.AuthFile != "/a.json" || cfg.Socket != "/s.sock" || cfg.SocketGroup != "wheel" {
+		t.Errorf("cfg = %+v, err = %v", cfg, err)
+	}
+
+	cfg, err = LoadFrom(env(map[string]string{"NIDA_CORE_JOURNALCTL": "off", "NIDA_CORE_LOG_DIR": "off", "NIDA_CORE_SOCKET": "off"}))
+	if err != nil || cfg.Journalctl != nil || cfg.LogDir != "" || cfg.Socket != "" {
 		t.Errorf("cfg = %+v, err = %v", cfg, err)
 	}
 }
