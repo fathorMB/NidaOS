@@ -12,7 +12,7 @@ import (
 )
 
 func newTestRouter() *Router {
-	return NewRouter(slog.New(slog.NewTextHandler(io.Discard, nil)), &fakeState{})
+	return NewRouter(Deps{Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), State: &fakeState{}})
 }
 
 func TestHealthPaths(t *testing.T) {

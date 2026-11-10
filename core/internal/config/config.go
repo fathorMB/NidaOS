@@ -33,6 +33,13 @@ type Config struct {
 
 	// PlanFile is the disk plan of the installer, from Root.
 	PlanFile string
+
+	// PodLogDir is the directory of the pod logs of the kubelet, from Root.
+	// The metrics read the names of the pods from it.
+	PodLogDir string
+
+	// MetricsInterval is the time between two metric snapshots.
+	MetricsInterval time.Duration
 }
 
 // Defaults of the configuration.
@@ -41,6 +48,11 @@ const (
 	DefaultShutdownTimeout = 10 * time.Second
 	DefaultRoot            = "/"
 	DefaultPlanFile        = "/var/lib/nidaos/install-plan.txt"
+	DefaultPodLogDir       = "/var/log/pods"
+	DefaultMetricsInterval = 2 * time.Second
+	// MinMetricsInterval protects the computer from a sampler that uses
+	// too much processor time.
+	MinMetricsInterval = 250 * time.Millisecond
 )
 
 // Load reads the configuration from the environment of the process.
@@ -57,6 +69,8 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 		ShutdownTimeout: DefaultShutdownTimeout,
 		Root:            DefaultRoot,
 		PlanFile:        DefaultPlanFile,
+		PodLogDir:       DefaultPodLogDir,
+		MetricsInterval: DefaultMetricsInterval,
 	}
 
 	if v := strings.TrimSpace(getenv(Prefix + "ADDR")); v != "" {
@@ -81,6 +95,18 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 			return Config{}, fmt.Errorf("%sSHUTDOWN_TIMEOUT: the value %q is not a positive duration (for example 10s)", Prefix, v)
 		}
 		cfg.ShutdownTimeout = d
+	}
+
+	if v := strings.TrimSpace(getenv(Prefix + "POD_LOG_DIR")); v != "" {
+		cfg.PodLogDir = v
+	}
+
+	if v := strings.TrimSpace(getenv(Prefix + "METRICS_INTERVAL")); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil || d < MinMetricsInterval {
+			return Config{}, fmt.Errorf("%sMETRICS_INTERVAL: the value %q is not a duration of %s or more", Prefix, v, MinMetricsInterval)
+		}
+		cfg.MetricsInterval = d
 	}
 
 	return cfg, nil

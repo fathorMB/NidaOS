@@ -30,6 +30,8 @@ go test ./...      # run the tests
 | `NIDA_CORE_SHUTDOWN_TIMEOUT` | `10s` | The maximum time for the open requests when the service stops. |
 | `NIDA_CORE_ROOT` | `/` | The start of the paths of `/proc`, `/sys` and `/etc`. |
 | `NIDA_CORE_PLAN_FILE` | `/var/lib/nidaos/install-plan.txt` | The disk plan of the installer. |
+| `NIDA_CORE_POD_LOG_DIR` | `/var/log/pods` | The pod logs of the kubelet. The metrics read the pod names from it. |
+| `NIDA_CORE_METRICS_INTERVAL` | `2s` | The time between two metric snapshots. The minimum is `250ms`. |
 
 To run the service on a development computer, use the copy of a NidaOS host in the tests:
 
@@ -48,6 +50,26 @@ NIDA_CORE_ROOT=internal/system/testdata/host go run .
 | `GET /api/v1/system` | The host: name, operating system, kernel, uptime, processor, memory and load. |
 | `GET /api/v1/disks` | The physical disks, their partitions and their role in the disk plan. |
 | `GET /api/v1/tiers` | The two storage tiers (`performance`, `standard`), their state and their usage. |
+| `GET /api/v1/metrics` | The last metric snapshot. |
+| `GET /api/v1/metrics/stream` | The live stream of the metric snapshots (Server-Sent Events). |
+
+## Live metrics
+
+One sampler reads the counters of the kernel at each interval and sends the same snapshot to all the clients (decision D8). A snapshot has:
+
+- the host: the processor usage (total and for each thread), the processor temperature when a sensor is available, the memory, the load, the input and output of each disk, and the traffic of each network interface;
+- the workloads: each pod of k3s and each systemd service, with the processor usage in cores and the memory.
+
+The service finds the pods in the cgroups (version 2) and reads their names from the directories in `/var/log/pods`. Thus it needs no access to the Kubernetes API.
+
+The stream uses Server-Sent Events. A browser reads it with `EventSource`:
+
+```js
+const metrics = new EventSource("/api/v1/metrics/stream");
+metrics.addEventListener("metrics", (e) => show(JSON.parse(e.data)));
+```
+
+The stream sends the last snapshot first, then each new snapshot as the event `metrics`. The `id` of an event is the `seq` of its snapshot. With no new data for 15 seconds, the stream sends a comment line. Each snapshot has its `time`: an interface shows this time when the stream stops. A slow client does not stop the other clients: it does not get the snapshots that it cannot receive.
 
 A tier has one of three states:
 

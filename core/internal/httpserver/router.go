@@ -30,25 +30,43 @@ type Router struct {
 	mux     *http.ServeMux
 	logger  *slog.Logger
 	state   StateSource
-	started time.Time
-	now     func() time.Time
+	metrics MetricsSource
+	// heartbeat is the time between two comments in a stream.
+	heartbeat time.Duration
+	started   time.Time
+	now       func() time.Time
 	// methods gives the accepted methods of each known path.
 	methods map[string][]string
 }
 
+// Deps are the parts that the router uses. A nil source removes its paths.
+type Deps struct {
+	Logger  *slog.Logger
+	State   StateSource
+	Metrics MetricsSource
+}
+
 // NewRouter makes the router with all the paths of the service.
-func NewRouter(logger *slog.Logger, state StateSource) *Router {
+func NewRouter(d Deps) *Router {
 	r := &Router{
-		mux:     http.NewServeMux(),
-		logger:  logger,
-		state:   state,
-		started: time.Now(),
-		now:     time.Now,
+		mux:       http.NewServeMux(),
+		logger:    d.Logger,
+		state:     d.State,
+		metrics:   d.Metrics,
+		started:   time.Now(),
+		now:       time.Now,
+		heartbeat: SSEHeartbeat,
+	}
+	if r.logger == nil {
+		r.logger = slog.New(slog.DiscardHandler)
 	}
 	r.handle(http.MethodGet, "/healthz", r.health)
 	r.handle(http.MethodGet, "/readyz", r.health)
 	r.handle(http.MethodGet, "/api/v1/health", r.health)
-	r.addStateRoutes()
+	if r.state != nil {
+		r.addStateRoutes()
+	}
+	r.addMetricsRoutes()
 	r.mux.HandleFunc("/", r.noRoute)
 	return r
 }

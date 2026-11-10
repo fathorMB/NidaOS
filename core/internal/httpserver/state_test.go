@@ -3,8 +3,6 @@ package httpserver
 import (
 	"encoding/json"
 	"errors"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -67,7 +65,7 @@ func TestStateRoutes(t *testing.T) {
 }
 
 func TestStateError(t *testing.T) {
-	r := NewRouter(slog.New(slog.NewTextHandler(io.Discard, nil)), &fakeState{err: errors.New("no /proc")})
+	r := NewRouter(Deps{State: &fakeState{err: errors.New("no /proc")}})
 	for _, p := range []string{"/api/v1/state", "/api/v1/system", "/api/v1/disks", "/api/v1/tiers"} {
 		var e Error
 		if code := get(t, r, p, &e); code != http.StatusServiceUnavailable || e.Code != "state_unavailable" {
@@ -80,7 +78,7 @@ func TestStateError(t *testing.T) {
 // system package, through the HTTP router.
 func TestStateFromFixture(t *testing.T) {
 	c := system.NewCollector("../system/testdata/host", "")
-	r := NewRouter(slog.New(slog.NewTextHandler(io.Discard, nil)), c)
+	r := NewRouter(Deps{State: c})
 	var st system.State
 	if code := get(t, r, "/api/v1/state", &st); code != 200 {
 		t.Fatalf("status = %d", code)

@@ -66,7 +66,7 @@ func (c *Collector) Disks() ([]Disk, error) {
 	disks := []Disk{}
 	for _, e := range entries {
 		name := e.Name()
-		if isVirtualBlock(name) {
+		if IsVirtualBlock(name) {
 			continue
 		}
 		d, err := c.disk(name, mounts)
@@ -80,7 +80,9 @@ func (c *Collector) Disks() ([]Disk, error) {
 	return disks, nil
 }
 
-func isVirtualBlock(name string) bool {
+// IsVirtualBlock tells if a device of /sys/block is not a physical disk,
+// for example a loop device or a device-mapper device.
+func IsVirtualBlock(name string) bool {
 	for _, p := range []string{"loop", "ram", "zram", "dm-", "md", "sr", "nbd"} {
 		if strings.HasPrefix(name, p) {
 			return true

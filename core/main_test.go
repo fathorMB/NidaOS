@@ -67,11 +67,25 @@ func TestServeAndStop(t *testing.T) {
 		t.Fatalf("/api/v1/state: status = %d", resp.StatusCode)
 	}
 
+	// Open a live stream. The stop must not wait for it.
+	stream, err := http.Get("http://" + ln.Addr().String() + "/api/v1/metrics/stream")
+	if err != nil {
+		t.Fatalf("GET /api/v1/metrics/stream: %v", err)
+	}
+	defer stream.Body.Close()
+	if stream.StatusCode != http.StatusOK {
+		t.Fatalf("stream: status = %d", stream.StatusCode)
+	}
+
+	stopped := time.Now()
 	cancel()
 	select {
 	case err := <-done:
 		if err != nil {
 			t.Fatalf("serve: %v", err)
+		}
+		if d := time.Since(stopped); d > time.Second {
+			t.Errorf("the stop took %v: the open stream held it", d)
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("serve did not stop")

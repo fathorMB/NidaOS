@@ -31,10 +31,13 @@ func TestLoadDefaults(t *testing.T) {
 
 func TestLoadPaths(t *testing.T) {
 	cfg, err := LoadFrom(env(map[string]string{
-		"NIDA_CORE_ROOT":      "/tmp/host",
-		"NIDA_CORE_PLAN_FILE": "/plan.txt",
+		"NIDA_CORE_ROOT":             "/tmp/host",
+		"NIDA_CORE_PLAN_FILE":        "/plan.txt",
+		"NIDA_CORE_POD_LOG_DIR":      "/pods",
+		"NIDA_CORE_METRICS_INTERVAL": "1s",
 	}))
-	if err != nil || cfg.Root != "/tmp/host" || cfg.PlanFile != "/plan.txt" {
+	if err != nil || cfg.Root != "/tmp/host" || cfg.PlanFile != "/plan.txt" ||
+		cfg.PodLogDir != "/pods" || cfg.MetricsInterval != time.Second {
 		t.Errorf("cfg = %+v, err = %v", cfg, err)
 	}
 }
@@ -58,6 +61,8 @@ func TestLoadBadValues(t *testing.T) {
 		"level":    {"NIDA_CORE_LOG_LEVEL": "loud"},
 		"timeout":  {"NIDA_CORE_SHUTDOWN_TIMEOUT": "soon"},
 		"negative": {"NIDA_CORE_SHUTDOWN_TIMEOUT": "-1s"},
+		"fast":     {"NIDA_CORE_METRICS_INTERVAL": "10ms"},
+		"interval": {"NIDA_CORE_METRICS_INTERVAL": "often"},
 	} {
 		if _, err := LoadFrom(env(m)); err == nil {
 			t.Errorf("%s: LoadFrom gave no error", name)

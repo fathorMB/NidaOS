@@ -29,6 +29,7 @@ import (
 
 	"github.com/fathorMB/NidaOS/core/internal/config"
 	"github.com/fathorMB/NidaOS/core/internal/httpserver"
+	"github.com/fathorMB/NidaOS/core/internal/metrics"
 	"github.com/fathorMB/NidaOS/core/internal/system"
 	"github.com/fathorMB/NidaOS/core/internal/version"
 )
@@ -83,8 +84,19 @@ func run(args []string, stdout, stderr io.Writer) int {
 // serve runs the HTTP server on ln until ctx stops. Then it waits for the
 // open requests for a maximum of cfg.ShutdownTimeout.
 func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog.Logger) error {
+	interval := cfg.MetricsInterval
+	if interval <= 0 {
+		interval = config.DefaultMetricsInterval
+	}
+	sampler := metrics.NewSampler(cfg.Root, cfg.PodLogDir, interval, logger)
+	go sampler.Run(ctx)
+
 	srv := &http.Server{
-		Handler:           httpserver.NewRouter(logger, system.NewCollector(cfg.Root, cfg.PlanFile)),
+		Handler: httpserver.NewRouter(httpserver.Deps{
+			Logger:  logger,
+			State:   system.NewCollector(cfg.Root, cfg.PlanFile),
+			Metrics: sampler.Hub,
+		}),
 		ReadHeaderTimeout: 10 * time.Second,
 		// No WriteTimeout: the live streams keep the connection open.
 		IdleTimeout: 120 * time.Second,
