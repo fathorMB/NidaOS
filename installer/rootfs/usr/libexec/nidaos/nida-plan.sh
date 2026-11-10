@@ -16,7 +16,7 @@
 #
 # The real planner will measure the speed of the disks. This proof does not.
 #
-# The kickstart includes this file in its %pre section. Do not use "exit" here.
+# The %pre section of the kickstart runs this script in the installer.
 
 NIDA_MIN_BYTES=${NIDA_MIN_BYTES:-$((8 * 1024 * 1024 * 1024))}
 NIDA_STORAGE_KS=${NIDA_STORAGE_KS:-/tmp/nida-storage.ks}

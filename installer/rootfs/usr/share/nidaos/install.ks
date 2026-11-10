@@ -1,6 +1,5 @@
 # NidaOS installer kickstart (feasibility proof, milestone M-01).
-# scripts/make-installer-config.py puts installer/nida-plan.sh in the %pre section.
-# bootc-image-builder adds the command that installs the container image.
+# The installer image build replaces the payload marker with the image reference.
 
 text
 lang en_US.UTF-8
@@ -9,6 +8,10 @@ timezone Europe/Rome --utc
 network --bootproto=dhcp --device=link --activate --hostname=nidaos
 rootpw --lock
 
+# Install the NidaOS image from the container storage of the installer.
+# The installed system gets its updates from the target reference.
+bootc --source-imgref containers-storage:@@PAYLOAD_REF@@ --target-imgref @@PAYLOAD_REF@@
+
 # The %pre section writes these two files.
 %include /tmp/nida-storage.ks
 %include /tmp/nida-users.ks
@@ -16,12 +19,15 @@ rootpw --lock
 reboot
 
 %pre --interpreter=/bin/bash --log=/tmp/nida-pre.log
-@@NIDA_PLAN@@
+# The two files must exist, or the kickstart cannot include them.
+: > /tmp/nida-storage.ks
+: > /tmp/nida-users.ks
+
+bash /usr/libexec/nidaos/nida-plan.sh
 
 # The user comes from a seed volume with the label NIDASEED.
 # The volume contains one file: authorized_keys.
 # Without the seed, the installer asks the operator to make a user.
-: > /tmp/nida-users.ks
 nida_seed=$(blkid -L NIDASEED 2>/dev/null || true)
 if [ -n "$nida_seed" ]; then
     mkdir -p /tmp/nida-seed

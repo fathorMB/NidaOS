@@ -50,23 +50,27 @@ jobs:
       - name: Build the image
         run: sudo podman build -t "$IMAGE:$IMAGE_TAG" -f image/Containerfile image
 
-      - name: Make the installer configuration
+      - name: Build the installer image
         run: |
-          mkdir -p out
-          python3 scripts/make-installer-config.py > out/config.toml
+          sudo podman build -t localhost/nidaos-installer:proof \
+            --build-arg "PAYLOAD_REF=$IMAGE:$IMAGE_TAG" \
+            -f installer/Containerfile installer
 
       - name: Build the installer ISO
         run: |
+          mkdir -p out
           sudo podman run --rm --privileged --pull=newer \
             --security-opt label=type:unconfined_t \
-            -v "$PWD/out/config.toml:/config.toml:ro" \
             -v "$PWD/out:/output" \
             -v /var/lib/containers/storage:/var/lib/containers/storage \
-            quay.io/centos-bootc/bootc-image-builder:latest \
-            --type anaconda-iso \
-            --rootfs xfs \
-            "$IMAGE:$IMAGE_TAG"
+            ghcr.io/osbuild/image-builder-cli:latest \
+            build \
+            --bootc-ref localhost/nidaos-installer:proof \
+            --bootc-installer-payload-ref "$IMAGE:$IMAGE_TAG" \
+            --bootc-default-fs xfs \
+            bootc-generic-iso
           sudo find out -name '*.iso' -exec ls -lh {} \;
+          df -h /
 
       - name: Install and test in a virtual machine
         run: |
