@@ -9,4 +9,4 @@ RemainAfterExit=yes
 ExecStart=/usr/libexec/nidaos/nida-rdp-setup
 
 [Install]
-WantedBy=graphical.target
+WantedBy=multi-user.target

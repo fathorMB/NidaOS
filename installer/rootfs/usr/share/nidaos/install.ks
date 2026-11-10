@@ -77,7 +77,16 @@ findmnt -rno TARGET | while read -r target; do
         mkdir -p "$var_dir/lib/nidaos"
         cp /tmp/nida-plan.txt "$var_dir/lib/nidaos/install-plan.txt"
         cp /tmp/nida-pre.log "$var_dir/lib/nidaos/install-pre.log"
+        cp /tmp/nida-pre-install.log "$var_dir/lib/nidaos/install-pre-install.log" || true
         echo "plan saved in $var_dir/lib/nidaos"
+        # The installer in text mode sets the text target as the default.
+        # NidaOS has a desktop for Remote Desktop, thus set the graphical target.
+        for etc_dir in "$target"/ostree/deploy/default/deploy/*/etc; do
+            [ -d "$etc_dir/systemd/system" ] || continue
+            ln -sfn /usr/lib/systemd/system/graphical.target "$etc_dir/systemd/system/default.target"
+            echo "default target set in $etc_dir"
+        done
+        cp /tmp/nida-post.log "$var_dir/lib/nidaos/install-post.log" || true
         break
     fi
 done

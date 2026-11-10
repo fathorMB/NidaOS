@@ -220,6 +220,9 @@ expect "an RDP client can log in to the RDP service" rdp_login
 {
     echo "## rdp"
     "${SSH[@]}" sudo grdctl --system status || true
+    echo "default target: $("${SSH[@]}" systemctl get-default)"
+    "${SSH[@]}" systemctl status --no-pager -n 15 gdm.service || true
+    "${SSH[@]}" "sudo cat /var/lib/nidaos/install-post.log" || true
     "${SSH[@]}" systemctl status --no-pager -n 15 gnome-remote-desktop.service nida-rdp-setup.service || true
     tail -n 15 rdp-client.log || true
 } | tee -a report.txt
