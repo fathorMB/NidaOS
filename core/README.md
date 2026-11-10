@@ -18,8 +18,7 @@ The service uses only the Go standard library at this time.
 ```bash
 go run . serve     # start the service (the default command)
 go run . version   # print the version
-printf '%s
-' "$password" | go run . set-password   # set the owner password
+printf '%s\n' "$password" | go run . set-password   # set the owner password
 go test ./...      # run the tests
 ```
 
