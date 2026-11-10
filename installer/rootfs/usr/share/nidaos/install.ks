@@ -44,7 +44,31 @@ if [ -n "$nida_seed" ]; then
 fi
 %end
 
+%pre-install --interpreter=/bin/bash --log=/tmp/nida-pre-install.log
+# The image copy writes large temporary files in /var/tmp. In the installer,
+# /var/tmp is in the memory, and the image can be larger than the free memory.
+# Thus put /var/tmp on a new storage tier for the time of the installation.
+for nida_tier in /mnt/sysimage/var/nida/standard /mnt/sysimage/var/nida/performance; do
+    if mountpoint -q "$nida_tier"; then
+        mkdir -p "$nida_tier/.nida-install-tmp"
+        chmod 1777 "$nida_tier/.nida-install-tmp"
+        if mount --bind "$nida_tier/.nida-install-tmp" /var/tmp; then
+            echo "$nida_tier/.nida-install-tmp" > /tmp/nida-tmpdir
+            echo "/var/tmp is on $nida_tier"
+            break
+        fi
+    fi
+done
+df -h /var/tmp
+%end
+
 %post --nochroot --log=/tmp/nida-post.log
+# Remove the temporary directory of the image copy.
+if [ -s /tmp/nida-tmpdir ]; then
+    umount /var/tmp || umount -l /var/tmp || true
+    rm -rf "$(cat /tmp/nida-tmpdir)"
+fi
+
 # Keep the disk plan in /var of the installed system.
 # The installer mounts the new root file system. Find it by its ostree directory.
 findmnt -rno TARGET | while read -r target; do
