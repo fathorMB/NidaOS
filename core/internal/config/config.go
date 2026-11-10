@@ -25,12 +25,22 @@ type Config struct {
 	// ShutdownTimeout is the maximum time for the open requests when the
 	// service stops.
 	ShutdownTimeout time.Duration
+
+	// Root is the start of the paths of /proc, /sys and /etc. It is "/" on
+	// NidaOS. A different value lets the service read a copy of these files
+	// on a development computer.
+	Root string
+
+	// PlanFile is the disk plan of the installer, from Root.
+	PlanFile string
 }
 
 // Defaults of the configuration.
 const (
 	DefaultAddr            = "127.0.0.1:8470"
 	DefaultShutdownTimeout = 10 * time.Second
+	DefaultRoot            = "/"
+	DefaultPlanFile        = "/var/lib/nidaos/install-plan.txt"
 )
 
 // Load reads the configuration from the environment of the process.
@@ -45,10 +55,18 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 		Addr:            DefaultAddr,
 		LogLevel:        slog.LevelInfo,
 		ShutdownTimeout: DefaultShutdownTimeout,
+		Root:            DefaultRoot,
+		PlanFile:        DefaultPlanFile,
 	}
 
 	if v := strings.TrimSpace(getenv(Prefix + "ADDR")); v != "" {
 		cfg.Addr = v
+	}
+	if v := strings.TrimSpace(getenv(Prefix + "ROOT")); v != "" {
+		cfg.Root = v
+	}
+	if v := strings.TrimSpace(getenv(Prefix + "PLAN_FILE")); v != "" {
+		cfg.PlanFile = v
 	}
 
 	if v := strings.TrimSpace(getenv(Prefix + "LOG_LEVEL")); v != "" {

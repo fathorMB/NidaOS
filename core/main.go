@@ -29,6 +29,7 @@ import (
 
 	"github.com/fathorMB/NidaOS/core/internal/config"
 	"github.com/fathorMB/NidaOS/core/internal/httpserver"
+	"github.com/fathorMB/NidaOS/core/internal/system"
 	"github.com/fathorMB/NidaOS/core/internal/version"
 )
 
@@ -83,7 +84,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 // open requests for a maximum of cfg.ShutdownTimeout.
 func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog.Logger) error {
 	srv := &http.Server{
-		Handler:           httpserver.NewRouter(logger),
+		Handler:           httpserver.NewRouter(logger, system.NewCollector(cfg.Root, cfg.PlanFile)),
 		ReadHeaderTimeout: 10 * time.Second,
 		// No WriteTimeout: the live streams keep the connection open.
 		IdleTimeout: 120 * time.Second,

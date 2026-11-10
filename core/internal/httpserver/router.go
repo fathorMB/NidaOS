@@ -4,7 +4,8 @@
 //   - /healthz and /readyz are the probes for systemd and the monitors. They
 //     have no version.
 //   - /api/v1/... is the API for the interfaces, the nida command and the
-//     agents. The tasks of M-02 add the state, the metrics and the logs.
+//     agents: the health, the state of the computer (state.go), and later
+//     the metrics and the logs.
 package httpserver
 
 import (
@@ -28,6 +29,7 @@ type Health struct {
 type Router struct {
 	mux     *http.ServeMux
 	logger  *slog.Logger
+	state   StateSource
 	started time.Time
 	now     func() time.Time
 	// methods gives the accepted methods of each known path.
@@ -35,16 +37,18 @@ type Router struct {
 }
 
 // NewRouter makes the router with all the paths of the service.
-func NewRouter(logger *slog.Logger) *Router {
+func NewRouter(logger *slog.Logger, state StateSource) *Router {
 	r := &Router{
 		mux:     http.NewServeMux(),
 		logger:  logger,
+		state:   state,
 		started: time.Now(),
 		now:     time.Now,
 	}
 	r.handle(http.MethodGet, "/healthz", r.health)
 	r.handle(http.MethodGet, "/readyz", r.health)
 	r.handle(http.MethodGet, "/api/v1/health", r.health)
+	r.addStateRoutes()
 	r.mux.HandleFunc("/", r.noRoute)
 	return r
 }

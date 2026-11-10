@@ -24,6 +24,19 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.ShutdownTimeout != DefaultShutdownTimeout {
 		t.Errorf("ShutdownTimeout = %v, want %v", cfg.ShutdownTimeout, DefaultShutdownTimeout)
 	}
+	if cfg.Root != "/" || cfg.PlanFile != DefaultPlanFile {
+		t.Errorf("Root, PlanFile = %q, %q", cfg.Root, cfg.PlanFile)
+	}
+}
+
+func TestLoadPaths(t *testing.T) {
+	cfg, err := LoadFrom(env(map[string]string{
+		"NIDA_CORE_ROOT":      "/tmp/host",
+		"NIDA_CORE_PLAN_FILE": "/plan.txt",
+	}))
+	if err != nil || cfg.Root != "/tmp/host" || cfg.PlanFile != "/plan.txt" {
+		t.Errorf("cfg = %+v, err = %v", cfg, err)
+	}
 }
 
 func TestLoadValues(t *testing.T) {

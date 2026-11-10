@@ -1,0 +1,5 @@
+NAME="Fedora Linux"
+VERSION_ID=45
+PRETTY_NAME="Fedora Linux 45 (NidaOS)"
+OSTREE_VERSION='v1'
+# comment

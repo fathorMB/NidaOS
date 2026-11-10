@@ -43,7 +43,7 @@ func TestServeAndStop(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	cfg := config.Config{ShutdownTimeout: 2 * time.Second}
+	cfg := config.Config{ShutdownTimeout: 2 * time.Second, Root: "internal/system/testdata/host"}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	done := make(chan error, 1)
@@ -56,6 +56,15 @@ func TestServeAndStop(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
+	}
+
+	resp, err = http.Get("http://" + ln.Addr().String() + "/api/v1/state")
+	if err != nil {
+		t.Fatalf("GET /api/v1/state: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("/api/v1/state: status = %d", resp.StatusCode)
 	}
 
 	cancel()
