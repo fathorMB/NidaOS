@@ -17,7 +17,7 @@ set -euo pipefail
 ISO=$(realpath "$1")
 WORK=$2
 REPO=$(cd "$(dirname "$0")/.." && pwd)
-INSTALL_TIMEOUT=${INSTALL_TIMEOUT:-3000}
+INSTALL_TIMEOUT=${INSTALL_TIMEOUT:-1500}
 BOOT_TIMEOUT=${BOOT_TIMEOUT:-600}
 VM_CPUS=${VM_CPUS:-2}
 VM_MEMORY_MB=${VM_MEMORY_MB:-4096}
@@ -67,6 +67,13 @@ screenshot() {
     echo "screendump $PWD/$1 -f png" | socat - UNIX-CONNECT:monitor.sock > /dev/null 2>&1 || true
 }
 
+# Print the last lines of the serial console without the control characters.
+show_serial() {
+    echo "---- last $1 lines of the serial console ----"
+    sed -e 's/\[[0-9;?]*[A-Za-z]//g' serial.log | tr -d '' | grep -v '^[[:space:]]*$' | tail -n "$1" | cut -c1-400
+    echo "---- end of the serial console ----"
+}
+
 echo "==> Install from $ISO"
 "${QEMU[@]}" \
     -drive "id=cd0,if=none,media=cdrom,readonly=on,format=raw,file=$ISO" \
@@ -83,6 +90,7 @@ while kill -0 "$qemu_pid" 2>/dev/null; do
         screenshot screen-install-timeout.png
         kill "$qemu_pid" || true
         echo "error: the installation did not complete in $INSTALL_TIMEOUT seconds" >&2
+        show_serial 150
         exit 1
     fi
     sleep 30
