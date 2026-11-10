@@ -1,0 +1,26 @@
+{
+  "version": "1.0.0",
+  "files": {
+    "AGENT.md": "f40d899fa29137915eec57394e10a9622fbacc30d7baf3bfa660f607802f722a",
+    "CHANGELOG.md": "bf5d616ac261948b06eb2acc5552245f8c6d254adebd88b13e170fdbd662a776",
+    "OPERATOR.md": "d6a5cc87f59e0ae723baeba25ca62f41074b058e98afa564baeb595687b1e257",
+    "README.md": "19320cf8cb07ae4981895bbd329cfe52f51137e11bf41c7db137f4adb3d3b47a",
+    "UPGRADING.md": "aca09e2d56bf58162774e8988883bfd253a89a1b0ba3413adf9a2dfd1e0b1fcd",
+    "WRITING.md": "249928a9dac8bc5f87da8fedd947a6f65eb5f427bfc9841ef56a38d0c39e00f6",
+    "design/README.md": "6c708d3bd102a7150d7223f7554db92920cb2c056a4626729e84c40bcfb79c3d",
+    "knowledge/README.md": "4c558542e17d242fdcbc680025a51a4aa2b1da9a6c7d5cfe8258ad0b87cac08f",
+    "mcp/README.md": "6d7f4d3f9844bd5f59e3519f67ef2b246ff3498d1e9ea887fea150ad93a77614",
+    "memory/README.md": "a3933089530ef808bdc6f49a71d332fdc9f2dd8026e36a3509c8a8d3bbff2473",
+    "milestones/README.md": "3b516c7fedc0bc5710558a9114d33f0d49caf4f1358e34a78a373732d3d6db23",
+    "reports/README.md": "e721770afd117fc8c2628e8a5478bc547bb8a2e55802d8998d1c842974f2ff39",
+    "skills/README.md": "bce64a237eaaeaa4eab5d674730807c2eb7dbefd2a83707918f23ba1a082d4ae",
+    "templates/carve-out-prompt.md": "b222999189442c45c3522b54ceab91e7917c4153f87d20295ece40068249ce78",
+    "templates/dreaming-session-prompt.md": "1dc1e59facebb511cb6073b7c39af93952bdc7910842e701b1feff2ae11c9d49",
+    "templates/lead-bootstrap-prompt.md": "280bfbaf58864e05118e4b7eeef2f9de017da2394f1fbffda98aaf77d9e862ae",
+    "templates/milestone.md": "f70ae48534090511ada647998b84ef56b8fd8afeee95eee2e0e14c1d70bd493d",
+    "templates/resume-milestone-prompt.md": "d9bef720cf81f5be605fdd6d479770eedbd208bfb7bd516d8c49a8d0f420a6e5",
+    "templates/skill.md": "74b675146624a47e50226348bc14184f19bc344f865b3740affd63db8544ba51",
+    "templates/subagent-brief.md": "8190916dd7bc94fa3efcbe1b2cd891ea584913060f2ace97d8ab7338e091b746",
+    "templates/takeover-prompt.md": "40dd65d97cff16b8466c99b19f9382bc23b4acd0b73e7a3bbc4f07dacd88cf50"
+  }
+}

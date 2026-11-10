@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NidaOS files</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #f4efe9; --panel: #fffdfa; --sunk: #ebe4dc; --line: #d8cec3;
+  --text: #221b16; --muted: #6f6359; --accent: #c2501a; --on-accent: #fff8f2;
+  --sys: #5d544c; --perf: #c2501a; --std: #2f6c98;
+  --ok: #2e7d4f; --warn: #a66a00; --bad: #b3261e;
+  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --display: "Bahnschrift", "DIN Alternate", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --mono: "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12100e; --panel: #1b1816; --sunk: #151210; --line: #342d28;
+    --text: #efe7df; --muted: #a2968b; --accent: #f08a3e; --on-accent: #1a0f07;
+    --sys: #b9aea3; --perf: #f08a3e; --std: #7fb0d6;
+    --ok: #74c493; --warn: #e2b04a; --bad: #ef7d73;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 var(--font); display: flex; flex-direction: column; height: 100vh; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+a { color: inherit; text-decoration: none; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+.top { display: flex; align-items: center; gap: 18px; padding: 0 16px; height: 44px; background: var(--panel); border-bottom: 1px solid var(--line); flex: none; }
+.brand { display: flex; align-items: center; gap: 8px; font: 600 16px/1 var(--display); letter-spacing: .04em; }
+.brand svg { width: 20px; height: 20px; }
+.host { font: 13px/1 var(--mono); color: var(--muted); }
+.top .right { margin-left: auto; display: flex; align-items: center; gap: 12px; font: 11px/1 var(--mono); color: var(--muted); }
+
+.dock { flex: none; display: flex; justify-content: center; gap: 4px; padding: 8px; background: var(--panel); border-top: 1px solid var(--line); }
+.dock a { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 78px; padding: 7px 0 5px; border-radius: 6px; font-size: 11px; color: var(--muted); border: 1px solid transparent; }
+.dock a:hover { background: var(--sunk); color: var(--text); }
+.dock a[aria-current] { color: var(--text); border-color: var(--line); background: var(--sunk); }
+.dock svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.dock .sep { width: 1px; background: var(--line); margin: 6px 8px; }
+
+.desk { flex: 1; min-height: 0; padding: 14px; display: flex; }
+.win { flex: 1; min-width: 0; display: grid; grid-template-columns: 240px minmax(0, 1fr) 280px; grid-template-rows: auto minmax(0, 1fr) auto;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.crumbs { display: flex; align-items: center; gap: 2px; flex: 1; min-width: 0; background: var(--sunk); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font: 13px/1.3 var(--mono); overflow: hidden; white-space: nowrap; }
+.crumbs button { padding: 1px 5px; border-radius: 4px; } .crumbs button:hover { background: var(--line); }
+.crumbs i { color: var(--muted); font-style: normal; }
+.tierbadge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 4px 9px; border: 1px solid var(--line); border-radius: 99px; white-space: nowrap; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; background: var(--c, var(--line)); flex: none; }
+.btn { border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; white-space: nowrap; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+input[type=search] { font: inherit; color: inherit; background: var(--sunk); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; width: 170px; }
+
+.side { border-right: 1px solid var(--line); background: var(--sunk); padding: 12px 8px; overflow: auto; }
+.side h2 { font: 600 11px/1 var(--font); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 14px 8px 6px; }
+.side h2:first-child { margin-top: 2px; }
+.place { display: block; width: 100%; text-align: left; padding: 7px 8px; border-radius: 6px; }
+.place:hover { background: var(--line); }
+.place[aria-current=true] { background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); font-weight: 600; }
+.place .n { display: flex; align-items: center; gap: 8px; }
+.place .n span { margin-left: auto; font: 11px/1 var(--mono); color: var(--muted); font-weight: 400; }
+.place .u { height: 3px; background: var(--line); border-radius: 2px; margin: 6px 0 0 17px; overflow: hidden; }
+.place .u b { display: block; height: 100%; background: var(--c); }
+.place.plain .n::before { content: ""; width: 9px; height: 9px; border: 1.5px solid var(--muted); border-radius: 2px; flex: none; }
+
+.main { overflow: auto; min-width: 0; }
+table { width: 100%; border-collapse: collapse; }
+th { position: sticky; top: 0; background: var(--panel); text-align: left; font: 400 12px/1 var(--font); color: var(--muted); padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 8px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td.r, th.r { text-align: right; }
+tbody tr { cursor: default; }
+tbody tr:hover { background: var(--sunk); }
+tbody tr[aria-selected=true] { background: var(--sunk); box-shadow: inset 3px 0 0 var(--accent); }
+.ico { display: inline-block; width: 16px; height: 13px; margin-right: 10px; vertical-align: -1px; border-radius: 2px; border: 1.5px solid var(--muted); }
+.ico.dir { background: var(--muted); border-color: var(--muted); border-radius: 1px 4px 2px 2px; }
+.owner { font: 11px/1 var(--mono); color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 2px 5px; }
+.empty { padding: 40px 14px; color: var(--muted); text-align: center; }
+
+.info { border-left: 1px solid var(--line); padding: 16px; overflow: auto; }
+.info h3 { margin: 0 0 2px; font: 600 18px/1.25 var(--display); overflow-wrap: anywhere; }
+.info .sub { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+.info dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0 0 16px; font-size: 13px; }
+.info dt { color: var(--muted); } .info dd { margin: 0; text-align: right; font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+.info .acts { display: grid; gap: 6px; }
+.info .acts .btn { text-align: left; }
+.hint { font-size: 12px; color: var(--muted); border-left: 3px solid var(--warn); padding: 6px 10px; margin-top: 14px; }
+.status { grid-column: 1 / -1; border-top: 1px solid var(--line); padding: 6px 14px; font: 12px/1.4 var(--mono); color: var(--muted); display: flex; gap: 18px; }
+.status span:last-child { margin-left: auto; }
+
+@media (max-width: 1000px) { .win { grid-template-columns: 200px minmax(0, 1fr); } .info { display: none; } }
+@media (max-width: 640px) {
+  .win { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; }
+  .side { border-right: 0; border-bottom: 1px solid var(--line); display: flex; gap: 4px; padding: 6px; }
+  .side h2, .place .u, .place .n span { display: none; } .place { width: auto; white-space: nowrap; }
+  .bar { flex-wrap: wrap; } .host, input[type=search] { display: none; } .dock a { width: 58px; }
+  .col-o, .col-m { display: none; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <svg viewBox="0 0 26 26" aria-hidden="true"><path d="M2 2h22v14l-8 8H2z" fill="var(--accent)"/><path d="M8 18V8l10 10V8" fill="none" stroke="var(--on-accent)" stroke-width="2.4"/></svg>
+    NidaOS
+  </div>
+  <span class="host">nidaos.local · Files</span>
+  <div class="right"><span>mockup · sample data</span></div>
+</header>
+
+<div class="desk">
+  <div class="win">
+    <div class="bar">
+      <button class="btn" id="up" aria-label="Go to the parent folder">↑</button>
+      <div class="crumbs" id="crumbs"></div>
+      <span class="tierbadge" id="badge"></span>
+      <input type="search" id="q" placeholder="Find in this folder" aria-label="Find in this folder">
+      <button class="btn">New folder</button>
+      <button class="btn primary">Upload</button>
+    </div>
+
+    <nav class="side" id="side" aria-label="Places"></nav>
+
+    <div class="main">
+      <table>
+        <thead><tr><th>Name</th><th class="col-o">Used by</th><th class="col-m">Changed</th><th class="r">Size</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="empty" id="empty" hidden>No item agrees with the search.</div>
+    </div>
+
+    <aside class="info" id="info"></aside>
+
+    <div class="status"><span id="count"></span><span id="sel"></span><span id="free"></span></div>
+  </div>
+</div>
+
+<nav class="dock" aria-label="Programs">
+  <a href="../desktop/index.html"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>Monitor</a>
+  <a href="../desktop/index.html"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/></svg>Terminal</a>
+  <a href="index.html" aria-current="page"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Files</a>
+  <a href="../logs/index.html"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM9 8h6M9 12h6M9 16h3"/></svg>Logs</a>
+  <span class="sep"></span>
+  <a href="../console/index.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>Console</a>
+  <a href="../desktop/index.html#power"><svg viewBox="0 0 24 24"><path d="M12 3v9M6.3 7.3a8 8 0 1 0 11.4 0"/></svg>Power</a>
+</nav>
+
+<script>
+// Sample data. A place is a root that the file program shows.
+const tiers = {
+  system: { name: 'System', c: 'var(--sys)', used: 31, size: 112 },
+  performance: { name: 'Performance', c: 'var(--perf)', used: 64, size: 119 },
+  standard: { name: 'Standard', c: 'var(--std)', used: 212, size: 931 },
+};
+const places = [
+  { head: 'Storage tiers' },
+  { id: 'performance', label: 'Performance', tier: 'performance', path: ['Performance'] },
+  { id: 'standard', label: 'Standard', tier: 'standard', path: ['Standard'] },
+  { head: 'Shortcuts' },
+  { id: 'home', label: 'Home of nida', tier: 'system', path: ['System', 'home', 'nida'], plain: true },
+  { id: 'photos', label: 'photos · library', tier: 'standard', path: ['Standard', 'apps', 'photos', 'library'], plain: true },
+  { id: 'backups', label: 'Backups', tier: 'standard', path: ['Standard', 'backups'], plain: true },
+  { head: 'Removable' },
+  { id: 'usb', label: 'NIDASEED', tier: null, path: ['NIDASEED'], plain: true },
+];
+// name, directory?, used by, changed, size
+const data = {
+  performance: [
+    ['databases', 1, 'system', 'today 21:30', '48.2 GB'], ['apps', 1, 'system', 'today 21:36', '15.6 GB'], ['README.txt', 0, 'system', '29 Oct', '1 KB'],
+  ],
+  standard: [
+    ['apps', 1, 'system', 'today 21:36', '148 GB'], ['backups', 1, 'backup', 'today 03:00', '61.4 GB'], ['shared', 1, 'nida', '2 Nov', '2.6 GB'], ['README.txt', 0, 'system', '29 Oct', '1 KB'],
+  ],
+  home: [
+    ['Documents', 1, 'nida', '6 Nov', '212 MB'], ['Downloads', 1, 'nida', 'yesterday', '1.1 GB'], ['notes.md', 0, 'nida', 'today 18:40', '4 KB'], ['nida-status.txt', 0, 'nida', '4 Nov', '2 KB'],
+  ],
+  photos: [
+    ['2026', 1, 'photos', 'today 20:12', '38.4 GB'], ['2025', 1, 'photos', '31 Dec 2025', '52.1 GB'], ['2024', 1, 'photos', '30 Dec 2024', '41.9 GB'],
+    ['albums', 1, 'photos', '8 Nov', '640 MB'], ['import-queue', 1, 'photos', 'today 20:10', '1.8 GB'], ['thumbnails', 1, 'photos', 'today 20:14', '6.2 GB'],
+    ['library.index', 0, 'photos', 'today 20:14', '88 MB'], ['settings.json', 0, 'photos', '12 Oct', '3 KB'], ['import-2026-11-09.log', 0, 'photos', 'yesterday', '212 KB'],
+  ],
+  backups: [
+    ['orders-db', 1, 'backup', 'today 03:00', '22.0 GB'], ['photos-db', 1, 'backup', 'today 03:00', '9.8 GB'], ['system-settings', 1, 'backup', 'today 03:00', '14 MB'],
+    ['orders-db-2026-11-10.dump', 0, 'backup', 'today 03:00', '3.1 GB'], ['photos-db-2026-11-10.dump', 0, 'backup', 'today 03:00', '1.4 GB'],
+  ],
+  usb: [['authorized_keys', 0, 'nida', '28 Oct', '1 KB']],
+};
+const $ = (s) => document.querySelector(s);
+let at = 'photos', picked = 0;
+
+function draw() {
+  const place = places.find((p) => p.id === at);
+  const tier = tiers[place.tier];
+  $('#side').innerHTML = places.map((p) => {
+    if (p.head) return `<h2>${p.head}</h2>`;
+    const t = tiers[p.tier];
+    const meter = !p.plain && t ? `<div class="u"><b style="width:${Math.round(t.used / t.size * 100)}%"></b></div>` : '';
+    const dot = p.plain ? '' : '<i class="dot"></i>';
+    const free = !p.plain && t ? `<span>${t.size - t.used} GB free</span>` : '';
+    return `<button class="place${p.plain ? ' plain' : ''}" data-place="${p.id}" aria-current="${p.id === at}" style="--c:${t ? t.c : 'var(--line)'}"><div class="n">${dot}${p.label}${free}</div>${meter}</button>`;
+  }).join('');
+  $('#crumbs').innerHTML = place.path.map((s, i) => `<button>${s}</button>`).join('<i>/</i>');
+  $('#badge').innerHTML = tier ? `<i class="dot" style="--c:${tier.c}"></i>${tier.name} tier` : '<i class="dot"></i>Removable';
+  $('#badge').style.setProperty('--c', tier ? tier.c : 'var(--line)');
+
+  const q = $('#q').value.trim().toLowerCase();
+  const items = data[at].map((r, i) => ({ r, i })).filter(({ r }) => r[0].toLowerCase().includes(q));
+  if (!items.some((x) => x.i === picked)) picked = items.length ? items[0].i : -1;
+  $('#rows').innerHTML = items.map(({ r, i }) => `
+    <tr data-i="${i}" aria-selected="${i === picked}" tabindex="0">
+      <td><i class="ico${r[1] ? ' dir' : ''}"></i>${r[0]}</td>
+      <td class="col-o"><span class="owner">${r[2]}</span></td>
+      <td class="col-m num">${r[3]}</td><td class="r num">${r[4]}</td></tr>`).join('');
+  $('#empty').hidden = items.length > 0;
+  $('#count').textContent = `${items.length} items`;
+  $('#free').textContent = tier ? `${tier.name}: ${tier.size - tier.used} GB free of ${tier.size} GB` : 'Removable volume';
+
+  const r = data[at][picked];
+  $('#sel').textContent = r ? `Selected: ${r[0]}` : '';
+  if (!r) { $('#info').innerHTML = '<div class="sub">Select an item to see its data.</div>'; return; }
+  const other = place.tier === 'standard' ? 'Performance' : 'Standard';
+  const move = tier && place.tier !== 'system'
+    ? `<button class="btn">Move to the ${other} tier…</button>` : '';
+  const inUse = r[2] !== 'nida' && r[2] !== 'system'
+    ? `<div class="hint">The "${r[2]}" ${r[2] === 'backup' ? 'function' : 'app'} uses this item. If you change it, the app can stop.</div>` : '';
+  $('#info').innerHTML = `
+    <h3>${r[0]}</h3><div class="sub">${r[1] ? 'Folder' : 'File'}</div>
+    <dl><dt>Size</dt><dd>${r[4]}</dd><dt>Changed</dt><dd>${r[3]}</dd><dt>Used by</dt><dd>${r[2]}</dd>
+      <dt>Tier</dt><dd>${tier ? tier.name : 'none'}</dd><dt>Path</dt><dd>/${place.path.join('/').toLowerCase()}/${r[0]}</dd></dl>
+    <div class="acts"><button class="btn">Download to this PC</button><button class="btn">Rename</button>${move}<button class="btn">Delete…</button></div>${inUse}`;
+}
+
+document.addEventListener('click', (e) => {
+  const p = e.target.closest('[data-place]'), row = e.target.closest('tr[data-i]');
+  if (p) { at = p.dataset.place; picked = 0; $('#q').value = ''; draw(); }
+  if (row) { picked = +row.dataset.i; draw(); }
+});
+$('#q').addEventListener('input', draw);
+$('#up').addEventListener('click', () => { const t = places.find((p) => p.id === at).tier; if (t && tiers[t] && data[t]) { at = t; picked = 0; draw(); } });
+draw();
+</script>
+</body>
+</html>

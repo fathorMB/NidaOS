@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NidaOS console</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #f4efe9; --panel: #fffdfa; --sunk: #ebe4dc; --line: #d8cec3;
+  --text: #221b16; --muted: #6f6359; --accent: #c2501a; --on-accent: #fff8f2;
+  --sys: #5d544c; --perf: #c2501a; --std: #2f6c98;
+  --ok: #2e7d4f; --warn: #a66a00; --bad: #b3261e;
+  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --display: "Bahnschrift", "DIN Alternate", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --mono: "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12100e; --panel: #1b1816; --sunk: #151210; --line: #342d28;
+    --text: #efe7df; --muted: #a2968b; --accent: #f08a3e; --on-accent: #1a0f07;
+    --sys: #b9aea3; --perf: #f08a3e; --std: #7fb0d6;
+    --ok: #74c493; --warn: #e2b04a; --bad: #ef7d73;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 var(--font); }
+button, select, input { font: inherit; color: inherit; }
+button { background: none; border: 0; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+.app { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 100vh; }
+.nav { background: var(--sunk); border-right: 1px solid var(--line); padding: 18px 10px; display: flex; flex-direction: column; gap: 2px; }
+.brand { display: flex; align-items: center; gap: 9px; font: 600 18px/1 var(--display); letter-spacing: .04em; padding: 0 8px 4px; }
+.brand svg { width: 22px; height: 22px; }
+.where { font: 12px/1.3 var(--mono); color: var(--muted); padding: 0 8px 14px; }
+.nav h2 { font: 600 11px/1 var(--font); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 14px 8px 5px; }
+.nav button { display: flex; align-items: center; gap: 8px; text-align: left; padding: 7px 8px; border-radius: 6px; }
+.nav button:hover { background: var(--line); }
+.nav button[aria-current=page] { background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); font-weight: 600; }
+.nav button span { margin-left: auto; font: 11px/1 var(--mono); color: var(--muted); font-weight: 400; }
+.nav .foot { margin-top: auto; padding: 12px 8px 0; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+
+.page { padding: 28px 32px 60px; min-width: 0; max-width: 1180px; }
+.back { color: var(--muted); font-size: 13px; padding: 0; margin-bottom: 10px; }
+.back:hover { color: var(--text); }
+.head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+.head > div:first-child { flex: 1; min-width: 240px; }
+h1 { font: 600 28px/1.15 var(--display); margin: 0 0 4px; }
+.lead { color: var(--muted); margin: 0; max-width: 64ch; }
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 7px 14px; white-space: nowrap; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.btn.danger { color: var(--bad); border-color: var(--bad); }
+.btn.small { padding: 3px 9px; font-size: 13px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font: 400 12px/1 var(--font); color: var(--muted); padding: 12px 16px; white-space: nowrap; }
+td { padding: 11px 16px; border-top: 1px solid var(--line); white-space: nowrap; }
+td.r, th.r { text-align: right; }
+tbody tr[data-open] { cursor: pointer; }
+tbody tr[data-open]:hover { background: var(--sunk); }
+.led { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin-right: 8px; }
+.led.warn { background: var(--warn); } .led.off { background: var(--line); } .led.bad { background: var(--bad); }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; background: var(--c); }
+.tag { font: 11px/1 var(--mono); color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 2px 5px; }
+.mono { font: 12.5px/1.4 var(--mono); }
+.muted { color: var(--muted); }
+h3 { font: 600 12px/1 var(--font); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 24px 0 8px; display: flex; align-items: center; gap: 10px; }
+h3 .btn { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 400; }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.stats div { padding: 14px 16px; border-right: 1px solid var(--line); }
+.stats div:last-child { border-right: 0; }
+.stats dt { font-size: 12px; color: var(--muted); }
+.stats dd { margin: 2px 0 0; font: 600 22px/1.2 var(--display); }
+.stats small { display: block; font: 400 12px/1.4 var(--font); color: var(--muted); }
+.todo { list-style: none; margin: 0; padding: 0; }
+.todo li { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--line); }
+.todo li:first-child { border-top: 0; }
+.todo .grow { flex: 1; min-width: 0; }
+.todo small { display: block; color: var(--muted); }
+
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 4px; overflow-x: auto; }
+.tabs button { padding: 9px 14px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+.tabs button:hover { color: var(--text); }
+.tabs button[aria-selected=true] { color: var(--text); font-weight: 600; border-color: var(--accent); }
+.kv { display: grid; grid-template-columns: 190px minmax(0, 1fr) auto; }
+.kv > * { padding: 11px 16px; border-top: 1px solid var(--line); min-width: 0; }
+.kv > :nth-child(-n+3) { border-top: 0; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; overflow-wrap: anywhere; } .kv .a { text-align: right; white-space: nowrap; }
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
+.note { border-left: 3px solid var(--warn); background: var(--panel); padding: 10px 14px; margin-top: 14px; border-radius: 0 6px 6px 0; }
+.note.ok { border-color: var(--ok); } .note.bad { border-color: var(--bad); }
+pre { margin: 0; padding: 14px 16px; font: 12.5px/1.6 var(--mono); overflow-x: auto; }
+.opt { display: block; border: 1px solid var(--line); border-radius: 6px; padding: 9px 12px; margin-bottom: 6px; cursor: pointer; background: var(--panel); }
+.opt:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.opt small { display: block; color: var(--muted); margin-left: 22px; }
+.opts2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 6px; }
+.opts2 .opt { margin: 0; }
+
+.form .row { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 14px; padding: 13px 16px; border-top: 1px solid var(--line); align-items: start; }
+.form .row:first-child { border-top: 0; }
+.form .row > label, .form .row > .lbl { font-weight: 600; padding-top: 7px; }
+.form .help { color: var(--muted); font-size: 13px; margin-top: 4px; }
+input[type=text], input[type=number], select { width: 100%; max-width: 420px; background: var(--sunk); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; }
+input.short { max-width: 120px; }
+.inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.step { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--text); color: var(--bg); font: 12px/1 var(--mono); }
+.sum { position: sticky; top: 20px; padding: 16px; }
+.sum h4 { margin: 0 0 10px; font: 600 16px/1.2 var(--display); }
+.sum dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0 0 14px; font-size: 13px; }
+.sum dt { color: var(--muted); } .sum dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.sum .btn { width: 100%; }
+.switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.switch input { appearance: none; width: 34px; height: 20px; border-radius: 99px; background: var(--line); position: relative; cursor: pointer; margin: 0; }
+.switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--panel); transition: left .15s; }
+.switch input:checked { background: var(--accent); } .switch input:checked::after { left: 17px; }
+.bar { height: 6px; background: var(--sunk); border-radius: 3px; overflow: hidden; min-width: 90px; }
+.bar i { display: block; height: 100%; background: var(--text); }
+.live { display: inline-flex; align-items: center; gap: 6px; font: 400 11px/1 var(--mono); letter-spacing: 0; text-transform: none; color: var(--ok); border: 1px solid var(--line); border-radius: 99px; padding: 3px 8px; }
+.live i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); animation: beat 1.6s infinite; }
+.live.paused { color: var(--warn); } .live.paused i { background: var(--warn); animation: none; }
+@keyframes beat { 50% { opacity: .25; } }
+.meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.m { padding: 12px 14px; }
+.m .mt { font-size: 12px; color: var(--muted); }
+.m .mv { font: 600 24px/1.2 var(--display); font-variant-numeric: tabular-nums; }
+.m .mv small { font: 400 13px/1 var(--font); color: var(--muted); margin-left: 4px; }
+svg.spark { display: block; width: 100%; height: 38px; margin: 6px 0 4px; }
+.spark path.l { fill: none; stroke: var(--text); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.spark path.a { fill: var(--text); opacity: .08; }
+.tail { font: 12.5px/1.55 var(--mono); overflow: hidden; }
+.tail div { display: grid; grid-template-columns: 70px 90px minmax(0, 1fr); gap: 0 12px; padding: 4px 14px; border-top: 1px solid var(--line); }
+.tail div:first-child { border-top: 0; }
+.tail time, .tail .s { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tail .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tail .warning { box-shadow: inset 3px 0 0 var(--warn); } .tail .error { box-shadow: inset 3px 0 0 var(--bad); }
+@media (prefers-reduced-motion: reduce) { .live i { animation: none; } }
+.sample { position: fixed; right: 12px; bottom: 10px; font: 11px/1 var(--mono); color: var(--muted); background: var(--panel); border: 1px solid var(--line); padding: 5px 8px; border-radius: 4px; }
+
+@media (max-width: 980px) { .cols { grid-template-columns: minmax(0, 1fr); } .sum { position: static; } }
+@media (max-width: 760px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .nav { flex-direction: row; align-items: center; overflow-x: auto; padding: 8px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .nav h2, .nav .foot, .where, .nav button span { display: none; } .brand { padding: 0 8px 0 4px; } .nav button { white-space: nowrap; }
+  .page { padding: 20px 16px 60px; }
+  .form .row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .kv { grid-template-columns: minmax(0, 1fr) auto; } .kv dt { grid-column: 1 / -1; padding-bottom: 0; } .kv dd { border-top: 0; padding-top: 2px; } .kv .a { border-top: 0; padding-top: 2px; }
+}
+@media (prefers-reduced-motion: reduce) { .switch input::after { transition: none; } }
+</style>
+</head>
+<body>
+<div class="sample">mockup · sample data</div>
+<div class="app">
+  <nav class="nav" id="nav" aria-label="Sections"></nav>
+  <main class="page" id="page"></main>
+</div>
+
+<script>
+// Sample data. The web console is the primary interface of NidaOS.
+const tier = (t) => `<i class="dot" style="--c:var(--${t === 'Performance' ? 'perf' : 'std'})"></i>${t}`;
+const ok = (s, cls = '') => `<i class="led ${cls}"></i>${s}`;
+const reach = { lan: 'LAN only', signin: 'Public, with sign-in', open: 'Public, no sign-in' };
+const apps = [
+  { name: 'shop-web', repo: 'example/shop-web', tier: 'Standard', url: 'shop.example.net', reach: 'open', ver: '7c1d9a2', when: '6 min ago', cpu: '4%', mem: '412 MB', db: null },
+  { name: 'shop-api', repo: 'example/shop-api', tier: 'Performance', url: 'api.shop.example.net', reach: 'open', ver: 'b20e4f1', when: '2 days ago', cpu: '6%', mem: '655 MB', db: 'orders-db', warn: '1 error in the last hour' },
+  { name: 'photos', repo: 'example/photos', tier: 'Standard', url: 'photos.example.net', reach: 'signin', ver: '19ac77d', when: '5 days ago', cpu: '1%', mem: '980 MB', db: 'photos-db' },
+  { name: 'notes', repo: 'example/notes', tier: 'Standard', url: 'notes.nidaos.local', reach: 'lan', ver: '0d3b5c8', when: '3 weeks ago', cpu: '0%', mem: '210 MB', db: null },
+];
+const dbs = [
+  { name: 'orders-db', engine: 'PostgreSQL', ver: '18.1', tier: 'Performance', size: '22.0 GB', limit: 40, pct: 55, apps: ['shop-api'], backup: 'today 03:00', conn: '18 of 100', mem: '2.9 of 3 GB', port: 5432, lan: false },
+  { name: 'photos-db', engine: 'PostgreSQL', ver: '18.1', tier: 'Performance', size: '9.8 GB', limit: 20, pct: 49, apps: ['photos'], backup: 'today 03:00', conn: '4 of 100', mem: '1.4 of 2 GB', port: 5432, lan: true },
+];
+const lists = {
+  overview: { nav: 'Overview', group: '' },
+  apps: {
+    nav: 'Apps', group: 'Hosting', count: apps.length, title: 'Apps', open: 'app', action: ['Add an app', 'app-new'],
+    lead: 'An app comes from a GitHub repository. A runner on this computer builds it and puts it in operation.',
+    cols: ['Name', 'Source', 'Storage', 'Address', 'Who can open it', 'Version'],
+    rows: apps.map((a) => [ok(`<b>${a.name}</b>`, a.warn ? 'warn' : ''), `<span class="mono">${a.repo}</span>`, tier(a.tier), `<span class="mono">${a.url}</span>`, reach[a.reach], `<span class="mono">${a.ver}</span> <span class="muted">· ${a.when}</span>`]),
+  },
+  databases: {
+    nav: 'Databases', group: 'Hosting', count: dbs.length, title: 'Databases', open: 'db', action: ['Add a database', 'db-new'],
+    lead: 'NidaOS operates each database: it starts it, makes the backups and keeps it on the tier that you select.',
+    cols: ['Name', 'Engine', 'Storage', 'Size', 'Used by', 'Last backup'],
+    rows: dbs.map((d) => [ok(`<b>${d.name}</b>`), `<span class="tag">${d.engine} ${d.ver}</span>`, tier(d.tier), `<span class="num">${d.size}</span>`, d.apps.join(', '), d.backup]),
+  },
+  storage: {
+    nav: 'Storage', group: 'Computer', title: 'Storage',
+    lead: 'The installer gave a role to each disk. Apps and databases select a tier, not a disk.',
+    cols: ['Tier', 'Disk', 'Used', 'Health', 'Contains'],
+    rows: [
+      ['<i class="dot" style="--c:var(--sys)"></i><b>System</b>', 'Kingston SA400 · SSD', '<span class="num">31 / 112 GB</span>', ok('good'), 'NidaOS, 2 versions'],
+      [`<b>${tier('Performance')}</b>`, 'SanDisk SDSSDHP · SSD', '<span class="num">64 / 119 GB</span>', ok('good'), '2 databases, 1 app'],
+      [`<b>${tier('Standard')}</b>`, 'Seagate ST1000DM · HDD', '<span class="num">212 / 931 GB</span>', ok('good'), '3 apps, backups'],
+    ],
+  },
+  logs: { nav: 'Logs', group: 'Computer' },
+  updates: {
+    nav: 'Updates', group: 'Computer', count: 1, title: 'Updates', action: ['Install 45.4 and restart'],
+    lead: 'An update replaces the full system in one step. The version before stays on the disk, thus you can go back.',
+    cols: ['Version', 'State', 'Date', ''],
+    rows: [
+      ['<b>NidaOS 45.4</b>', ok('Ready to install', 'warn'), 'downloaded today 20:10', '<button class="btn small">Read the changes</button>'],
+      ['<b>NidaOS 45.3</b>', ok('In operation'), 'installed 29 Oct', ''],
+      ['<b>NidaOS 45.2</b>', ok('Kept for a rollback', 'off'), 'installed 14 Oct', '<button class="btn small">Go back to this version</button>'],
+    ],
+  },
+  gateway: {
+    nav: 'Gateway', group: 'Access', title: 'Internet gateway', action: ['Add a person'],
+    lead: 'The gateway is a small device in your network. It gives a public address to the apps that you select, and it asks for sign-in.',
+    cols: ['Person', 'Can open', 'Last sign-in', ''],
+    rows: [
+      ['<b>Moreno</b> <span class="tag">owner</span>', 'All apps and this console', 'today 21:02', ''],
+      ['<b>Family</b> <span class="tag">group · 3</span>', 'photos', 'today 20:47', '<button class="btn small">Change</button>'],
+      ['<b>Guest link</b>', 'photos · album "Summer"', 'expires in 6 days', '<button class="btn small">Remove</button>'],
+    ],
+  },
+  runners: {
+    nav: 'Runners', group: 'Access', count: 2, title: 'GitHub runners', action: ['Add a runner'],
+    lead: 'A runner gets the build and deploy jobs from GitHub. The source stays on GitHub.',
+    cols: ['Name', 'Connected to', 'State', 'Last job'],
+    rows: [
+      [ok('<b>nida-runner-1</b>'), '<span class="mono">github.com/example</span>', 'Idle', 'shop-web deploy · 6 min ago · 1 min 12 s'],
+      [ok('<b>nida-runner-2</b>'), '<span class="mono">github.com/example</span>', 'Idle', 'shop-api deploy · 2 days ago · 2 min 40 s'],
+    ],
+  },
+  agents: {
+    nav: 'Agents', group: 'Access', count: 2, title: 'Agents', action: ['Make a token'],
+    lead: 'An agent uses the same commands as this console. Each agent has a token, and the rules tell what it can do without your approval.',
+    cols: ['Token', 'Agent', 'Can do', 'Asks you first', 'Last use'],
+    rows: [
+      [ok('<b>laptop</b>'), 'Claude Code', 'Read all, change app and database settings', 'Delete, updates, access rules', '8 min ago'],
+      [ok('<b>hermes</b>', 'off'), 'Hermes', 'Read all', 'Each change', '4 days ago'],
+    ],
+  },
+};
+const $ = (s) => document.querySelector(s);
+const st = { at: 'apps', item: 0, tab: 'overview' };
+const section = () => ({ app: 'apps', 'app-new': 'apps', db: 'databases', 'db-new': 'databases' }[st.at] || st.at);
+
+// Small builders.
+const table = (cols, rows) => `<div class="card scroll"><table><thead><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+const kv = (rows) => `<dl class="card kv">${rows.map(([k, v, a = '']) => `<dt>${k}</dt><dd>${v}</dd><div class="a">${a}</div>`).join('')}</dl>`;
+const stats = (items) => `<dl class="card stats">${items.map(([k, v, s]) => `<div><dt>${k}</dt><dd>${v}<small>${s}</small></dd></div>`).join('')}</dl>`;
+const tabs = (list) => `<div class="tabs" role="tablist">${list.map(([k, t]) => `<button role="tab" data-tab="${k}" aria-selected="${k === st.tab}">${t}</button>`).join('')}</div>`;
+const radio = (name, on, title, text) => `<label class="opt"><input type="radio" name="${name}" ${on ? 'checked' : ''}> ${title}<small>${text}</small></label>`;
+const row = (label, body, help = '') => `<div class="row"><div class="lbl">${label}</div><div>${body}${help ? `<div class="help">${help}</div>` : ''}</div></div>`;
+const small = (t, extra = '') => `<button class="btn small" ${extra}>${t}</button>`;
+const sw = (on, text) => `<label class="switch"><input type="checkbox" ${on ? 'checked' : ''}> ${text}</label>`;
+const tierPick = (name, sel) => `<div class="opts2">
+  ${radio(name, sel === 'Performance', tier('Performance'), 'Solid-state disk · 55 GB free')}
+  ${radio(name, sel === 'Standard', tier('Standard'), 'Hard disk · 719 GB free')}</div>`;
+
+// Live data (decision D8): each page shows metrics and logs in real time.
+const livePill = () => `<span class="live${paused ? ' paused' : ''}"><i></i>${paused ? 'Paused' : 'Live'}</span>`;
+const meter = (key, label, unit, sub = '') => `<div class="card m"><div class="mt">${label}</div><div class="mv"><span data-val="${key}">–</span><small>${unit}</small></div>
+  <svg class="spark" data-spark="${key}" viewBox="0 0 100 40" preserveAspectRatio="none"><path class="a"/><path class="l"/></svg><div class="muted" style="font-size:12px">${sub}</div></div>`;
+const tail = (src, n) => `<h3>Log ${livePill()} <button class="btn small" data-page="logs">Open all logs</button></h3><div class="card tail" data-tail="${src}" data-n="${n}"></div>`;
+// kind: [start, lowest, highest, step, decimals]
+const kinds = { cpu: [12, 1, 70, 12, 0], mem: [600, 200, 990, 40, 0], req: [14, 0, 60, 14, 0], ms: [38, 9, 240, 40, 0], conn: [16, 2, 40, 6, 0], qps: [120, 10, 400, 90, 0], hostmem: [11.4, 10.8, 12.6, 0.3, 1], net: [3.2, 0.3, 9, 2.4, 1] };
+const series = {};
+let paused = false, lineId = 0;
+const pool = [
+  ['info', 'shop-api', 'GET /products 200 in 23 ms'], ['info', 'shop-web', 'GET / 200 in 8 ms'], ['info', 'orders-db', 'Checkpoint complete: 96 buffers written'],
+  ['warning', 'shop-api', 'The connection pool to orders-db is 85% full (17 of 20)'], ['info', 'photos', 'Thumbnail made for IMG_4480.jpg'], ['info', 'gateway', 'Sign-in accepted for photos.example.net'],
+  ['info', 'notes', 'PUT /api/notes/41 200 in 19 ms'], ['info', 'photos-db', 'Automatic clean-up of table "assets" complete'], ['info', 'photos-db', 'Checkpoint complete: 41 buffers written'],
+  ['error', 'shop-api', 'POST /checkout 500: timeout after 5000 ms waiting for orders-db'], ['info', 'system', 'Processor temperature 47 °C'], ['info', 'shop-api', 'GET /orders?page=2 200 in 41 ms'],
+];
+const logLines = [];
+const pushLine = () => { const p = pool[lineId % pool.length]; lineId += 1; logLines.unshift({ at: new Date().toTimeString().slice(0, 8), level: p[0], src: p[1], text: p[2] }); logLines.length = Math.min(logLines.length, 80); };
+for (let i = 0; i < 24; i += 1) pushLine();
+
+function tick(advance) {
+  document.querySelectorAll('[data-spark]').forEach((svg) => {
+    const key = svg.dataset.spark, k = kinds[key.split(':').pop()];
+    if (!series[key]) series[key] = Array.from({ length: 40 }, () => k[0] + (Math.random() - 0.5) * k[3]);
+    const d = series[key];
+    if (advance) { d.shift(); d.push(Math.max(k[1], Math.min(k[2], d[d.length - 1] + (Math.random() - 0.5) * k[3]))); }
+    const line = d.map((v, i) => (i ? 'L' : 'M') + (i / 39 * 100).toFixed(1) + ' ' + (38 - (v - k[1]) / (k[2] - k[1]) * 34).toFixed(1)).join(' ');
+    svg.querySelector('.l').setAttribute('d', line); svg.querySelector('.a').setAttribute('d', line + ' L100 40 L0 40 Z');
+    document.querySelectorAll(`[data-val="${key}"]`).forEach((e) => { e.textContent = d[d.length - 1].toFixed(k[4]); });
+  });
+  document.querySelectorAll('[data-tail]').forEach((box) => {
+    const src = box.dataset.tail;
+    const rows = logLines.filter((l) => src === 'all' || l.src === src).slice(0, +box.dataset.n);
+    box.innerHTML = rows.length ? rows.map((l) => `<div class="${l.level}"><time>${l.at}</time><span class="s">${l.src}</span><span class="t">${l.text}</span></div>`).join('')
+      : '<div><time></time><span class="s"></span><span class="t muted">No lines in the last minutes.</span></div>';
+  });
+}
+
+function logsPage() {
+  return `<div class="head"><div><h1>Logs</h1><p class="lead">One stream for the system, the apps, the databases, the gateway and the agents. New lines come in at the top.</p></div>
+      ${livePill()}<button class="btn" data-pause>${paused ? 'Continue' : 'Pause'}</button><button class="btn">Filters</button><button class="btn">Save to a file</button></div>
+    <div class="card tail" data-tail="all" data-n="40"></div>
+    <div class="note ok">The Filters button gives the same sources, levels and search as the Logs program of the desktop (mockup design/logs).</div>`;
+}
+
+function drawNav() {
+  let last = null;
+  $('#nav').innerHTML = `
+    <div class="brand"><svg viewBox="0 0 26 26" aria-hidden="true"><path d="M2 2h22v14l-8 8H2z" fill="var(--accent)"/><path d="M8 18V8l10 10V8" fill="none" stroke="var(--on-accent)" stroke-width="2.4"/></svg>NidaOS</div>
+    <div class="where">nidaos.local</div>` +
+    Object.entries(lists).map(([key, p]) => {
+      const head = p.group !== last && p.group ? `<h2>${p.group}</h2>` : ''; last = p.group;
+      return `${head}<button data-page="${key}" ${key === section() ? 'aria-current="page"' : ''}>${p.nav}${p.count ? `<span>${p.count}</span>` : ''}</button>`;
+    }).join('') + '<div class="foot">Signed in as Moreno<br>NidaOS 45.3</div>';
+}
+
+function overview() {
+  return `
+    <div class="head"><div><h1>Overview</h1><p class="lead">All parts are in operation. Two items need your attention.</p></div></div>
+    <h3 style="margin-top:0">Now ${livePill()}</h3>
+    <div class="meters">${meter('host:cpu', 'Processor', '%', '47 °C · 8 threads')}${meter('host:hostmem', 'Memory', 'GB', 'of 32 GB')}${meter('host:net', 'Network in', 'Mbit/s', '14 connections')}${meter('host:req', 'Requests to the apps', 'each second', '4 apps · 2 databases')}</div>
+    <h3>Needs your attention</h3>
+    <div class="card"><ul class="todo">
+      <li><i class="led warn"></i><div class="grow"><b>Update 45.4 is ready</b><small>The installation restarts the computer. The apps stop for approximately 2 minutes.</small></div><button class="btn" data-page="updates">Open Updates</button></li>
+      <li><i class="led warn"></i><div class="grow"><b>shop-api had 1 error in the last hour</b><small>A request to orders-db did not complete in 5 seconds.</small></div><button class="btn" data-open="app:1">Open shop-api</button></li>
+    </ul></div>
+    <h3>Recent changes</h3>
+    <div class="card"><ul class="todo">
+      <li><div class="grow">Deploy of shop-web from GitHub<small>runner nida-runner-1 · 6 min ago</small></div><span class="tag">runner</span></li>
+      <li><div class="grow">Memory limit of orders-db changed from 2 GB to 3 GB<small>token "laptop" · 44 min ago</small></div><span class="tag">agent</span></li>
+      <li><div class="grow">Family got access to photos<small>3 days ago</small></div><span class="tag">Moreno</span></li>
+    </ul></div>
+    ${tail('all', 6)}`;
+}
+
+function list(p) {
+  const act = p.action ? `<button class="btn primary" ${p.action[1] ? `data-page="${p.action[1]}"` : ''}>${p.action[0]}</button>` : '';
+  return `<div class="head"><div><h1>${p.title}</h1><p class="lead">${p.lead}</p></div>${act}</div>
+    <div class="card scroll"><table><thead><tr>${p.cols.map((c) => `<th>${c}</th>`).join('')}</tr></thead>
+    <tbody>${p.rows.map((r, i) => `<tr ${p.open ? `data-open="${p.open}:${i}" tabindex="0"` : ''}>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+
+// ---- App: detail ----
+function appPage() {
+  const a = apps[st.item];
+  const body = {
+    overview: () => `
+      <h3 style="margin-top:16px">Now ${livePill()}</h3>
+      <div class="meters">${meter(a.name + ':cpu', 'Processor', '%', 'limit 1 core')}${meter(a.name + ':mem', 'Memory', 'MB', 'limit 1 GB')}${meter(a.name + ':req', 'Requests', 'each second', 'through the gateway and the LAN')}${meter(a.name + ':ms', 'Answer time', 'ms', 'middle value')}</div>
+      ${tail(a.name, 5)}
+      <h3>State</h3>
+      ${stats([['State', a.warn ? 'Attention' : 'Good', a.warn || 'answers the health check'], ['Version', `<span class="mono">${a.ver}</span>`, a.when], ['In operation for', '12 days', 'no restart']])}
+      ${a.warn ? `<div class="note"><b>${a.warn}.</b> A request to orders-db did not complete in 5 seconds. <button class="btn small" data-page="logs">Open the logs</button></div>` : ''}
+      <h3>Setup</h3>
+      ${kv([
+        ['Address', `<span class="mono">https://${a.url}</span>`, small('Open')],
+        ['Who can open it', reach[a.reach], small('Change', 'data-tab="access"')],
+        ['Source', `<span class="mono">github.com/${a.repo}</span> · branch main`, ''],
+        ['Storage', tier(a.tier), small('Change', 'data-tab="resources"')],
+        ['Database', a.db ? `<b>${a.db}</b>` : '<span class="muted">none</span>', a.db ? small('Open', `data-open="db:${dbs.findIndex((d) => d.name === a.db)}"`) : small('Connect', 'data-tab="variables"')],
+        ['Name for other apps', `<span class="mono">http://${a.name}</span>`, ''],
+      ])}
+      <h3>Last deploys ${small('See all', 'data-tab="deploys"')}</h3>
+      ${table(['Version', 'Change', 'When', 'Result'], [
+        [`<span class="mono">${a.ver}</span>`, 'Show the stock quantity on the product page', a.when, ok('In operation')],
+        ['<span class="mono">e41f0aa</span>', 'Correct the price format', '9 days ago', ok('Replaced', 'off')],
+      ])}`,
+    deploys: () => `
+      <p class="lead" style="margin:16px 0">A push to the branch <span class="mono">main</span> starts a deploy. NidaOS keeps the last 5 versions, thus you can go back.</p>
+      ${table(['Version', 'Change', 'Started by', 'When', 'Time', 'Result', ''], [
+        [`<span class="mono">${a.ver}</span>`, 'Show the stock quantity on the product page', 'push by fathor', a.when, '1 min 12 s', ok('In operation'), ''],
+        ['<span class="mono">a93d210</span>', 'Try the new cache', 'push by fathor', '8 days ago', '0 min 48 s', ok('Failed: no answer on the health check', 'bad'), small('Open the log')],
+        ['<span class="mono">e41f0aa</span>', 'Correct the price format', 'push by fathor', '9 days ago', '1 min 05 s', ok('Replaced', 'off'), small('Go back')],
+        ['<span class="mono">51b77c9</span>', 'Add the order history', 'Claude Code · token laptop', '16 days ago', '1 min 20 s', ok('Replaced', 'off'), small('Go back')],
+      ])}
+      <div class="note ok">If a new version does not answer the health check, NidaOS keeps the version before in operation.</div>
+      <h3>The workflow in the repository</h3>
+      <div class="card"><pre># .github/workflows/deploy.yml
+on: { push: { branches: [main] } }
+jobs:
+  deploy:
+    runs-on: [self-hosted, nidaos]
+    steps:
+      - uses: actions/checkout@v4
+      - run: nida app deploy ${a.name} --source .</pre></div>`,
+    variables: () => `
+      <p class="lead" style="margin:16px 0">The app reads these values when it starts. A change restarts the app.</p>
+      ${table(['Name', 'Value', 'Comes from', ''], [
+        ['<span class="mono">PORT</span>', '<span class="mono">8080</span>', 'NidaOS', ''],
+        ...(a.db ? [['<span class="mono">DATABASE_URL</span>', '<span class="mono">••••••••••••</span>', `link to ${a.db}`, small('Show')]] : []),
+        ['<span class="mono">LOG_LEVEL</span>', '<span class="mono">info</span>', 'you', small('Change')],
+        ['<span class="mono">PAYMENT_API_KEY</span> <span class="tag">secret</span>', '<span class="mono">••••••••••••</span>', 'you', small('Replace')],
+      ])}
+      <div class="inline" style="margin-top:12px"><button class="btn">Add a variable</button><button class="btn">Add a secret</button><button class="btn">Connect a database</button></div>
+      <div class="note">NidaOS does not show a secret again after you save it. You can only replace it.</div>`,
+    resources: () => `
+      <h3>Limits</h3>
+      <div class="card form">
+        ${row('Memory', '<div class="inline"><input class="short" type="number" value="1"> GB</div>', `Now: ${a.mem}. If the app uses more, NidaOS restarts it.`)}
+        ${row('Processor', '<div class="inline"><input class="short" type="number" value="1"> cores</div>', `Now: ${a.cpu}.`)}
+        ${row('Copies', '<div class="inline"><input class="short" type="number" value="1"></div>', 'More copies share the requests. Use one copy if the app writes local files.')}
+        ${row('Health check', '<div class="inline"><input type="text" value="/health" style="max-width:200px"> each 10 s</div>')}
+      </div>
+      <h3>Folders that stay ${small('Add a folder')}</h3>
+      ${table(['Folder in the app', 'Tier', 'Used', 'Limit', ''], [
+        ['<span class="mono">/data</span>', tier(a.tier), '<div class="bar"><i style="width:38%"></i></div>', '<span class="num">3.8 of 10 GB</span>', small(`Move to ${a.tier === 'Standard' ? 'Performance' : 'Standard'}…`)],
+      ])}
+      <div class="note">All other files of the app go away at each deploy. A move to a different tier stops the app during the copy.</div>
+      <div class="inline" style="margin-top:16px"><button class="btn primary">Save and restart</button><button class="btn">Cancel</button></div>`,
+    access: () => `
+      <h3>Who can open it</h3>
+      ${radio('reach', a.reach === 'lan', 'LAN only', 'Only the computers in your home network.')}
+      ${radio('reach', a.reach === 'signin', 'Public, with sign-in', 'Through the gateway. Only the persons that you permit.')}
+      ${radio('reach', a.reach === 'open', 'Public, no sign-in', 'Through the gateway. All persons on the internet.')}
+      <h3>Persons with access ${small('Add a person or a group')}</h3>
+      ${table(['Person', 'Since', ''], [['<b>Moreno</b> <span class="tag">owner</span>', 'always', ''], ['<b>Family</b> <span class="tag">group · 3</span>', '3 days ago', small('Remove')]])}
+      <h3>Addresses</h3>
+      ${kv([
+        ['Public address', `<span class="mono">https://${a.url}</span>`, small('Change')],
+        ['In the home network', `<span class="mono">https://${a.name}.nidaos.local</span>`, ''],
+        ['For other apps', `<span class="mono">http://${a.name}</span>`, ''],
+      ])}
+      <div class="note">With sign-in, the app gets the name of the person in a signed header. The app does not see the password.</div>`,
+    remove: () => `
+      <h3>Stop</h3>
+      <div class="card"><ul class="todo"><li><div class="grow"><b>Stop the app</b><small>The address shows a "stopped" page. The data and the settings stay.</small></div><button class="btn">Stop</button></li></ul></div>
+      <h3>Remove</h3>
+      <div class="card"><ul class="todo"><li><div class="grow"><b>Remove ${a.name}</b><small>NidaOS removes the app, its versions and its folders (3.8 GB). ${a.db ? `The database ${a.db} stays.` : ''} You cannot go back.</small></div><button class="btn danger">Remove…</button></li></ul></div>`,
+  };
+  return `<button class="back" data-page="apps">← Apps</button>
+    <div class="head"><div><h1>${a.name}</h1><p class="lead">${a.warn ? ok(a.warn, 'warn') : ok('In operation')} · <span class="mono">${a.url}</span></p></div>
+      <button class="btn" data-page="logs">Open the logs</button><button class="btn">Restart</button><button class="btn primary">Deploy again</button></div>
+    ${tabs([['overview', 'Overview'], ['deploys', 'Deploys'], ['variables', 'Variables and secrets'], ['resources', 'Resources and storage'], ['access', 'Access'], ['remove', 'Stop or remove']])}
+    ${(body[st.tab] || body.overview)()}`;
+}
+
+// ---- App: add ----
+function appNew() {
+  const h = (n, t) => `<h3><span class="step">${n}</span>${t}</h3>`;
+  return `<button class="back" data-page="apps">← Apps</button>
+    <div class="head"><div><h1>Add an app</h1><p class="lead">Select a GitHub repository. NidaOS prepares the place for the app, then the runner does the first deploy.</p></div></div>
+    <div class="cols"><div>
+      ${h(1, 'Source')}
+      <div class="card form">
+        ${row('Repository', '<select><option>example/blog</option><option>example/inventory</option><option>example/shop-admin</option></select>', 'The list comes from the GitHub accounts of your runners.')}
+        ${row('Branch', '<input type="text" value="main" style="max-width:200px">', 'A push to this branch starts a deploy.')}
+        ${row('How to build', `${radio('build', true, 'Dockerfile in the repository', 'Found: /Dockerfile')}${radio('build', false, 'Let NidaOS find it', 'For usual Node.js, Python, .NET and static sites.')}`)}
+      </div>
+      ${h(2, 'The app')}
+      <div class="card form">
+        ${row('Name', '<input type="text" value="blog">', 'Lowercase letters, numbers and hyphens.')}
+        ${row('Port', '<input class="short" type="number" value="8080">', 'The port on which the app listens.')}
+        ${row('Health check', '<input type="text" value="/health" style="max-width:200px">', 'NidaOS puts a new version in operation only if this address answers.')}
+      </div>
+      ${h(3, 'Storage')}
+      <div class="card form">
+        ${row('Folders that stay', `${radio('vol', false, 'None', 'The app keeps no files. This is the usual choice for an app with a database.')}${radio('vol', true, 'One folder', 'The files in this folder stay at each deploy.')}`)}
+        ${row('Folder in the app', '<div class="inline"><input type="text" value="/data" style="max-width:200px"> limit <input class="short" type="number" value="10"> GB</div>')}
+        ${row('Tier', tierPick('apptier', 'Standard'))}
+      </div>
+      ${h(4, 'Database')}
+      <div class="card form">
+        ${row('Connect', `${radio('db', false, 'No database', '')}${radio('db', true, 'A new database', 'PostgreSQL 18 · name blog-db · Performance tier')}${radio('db', false, 'A database that you have', 'orders-db, photos-db')}`, 'The app gets the connection data in the variable <span class="mono">DATABASE_URL</span>.')}
+      </div>
+      ${h(5, 'Address and access')}
+      <div class="card form">
+        ${row('Who can open it', `${radio('nreach', true, 'LAN only', 'Only the computers in your home network.')}${radio('nreach', false, 'Public, with sign-in', 'Through the gateway. Only the persons that you permit.')}${radio('nreach', false, 'Public, no sign-in', 'Through the gateway. All persons on the internet.')}`)}
+        ${row('Address', '<span class="mono">https://blog.nidaos.local</span>', 'You can add a public address after the first deploy.')}
+      </div>
+    </div>
+    <aside class="card sum"><h4>blog</h4>
+      <dl><dt>Source</dt><dd class="mono">example/blog · main</dd><dt>Build</dt><dd>Dockerfile</dd><dt>Storage</dt><dd>/data · 10 GB · Standard</dd><dt>Database</dt><dd>new · blog-db</dd><dt>Access</dt><dd>LAN only</dd><dt>Runner</dt><dd>nida-runner-1</dd></dl>
+      <button class="btn primary" data-page="apps">Add the app and deploy</button>
+      <div class="note" style="margin-top:12px;font-size:13px">NidaOS adds the file <span class="mono">deploy.yml</span> to the repository in a pull request. You approve it on GitHub.</div>
+    </aside></div>`;
+}
+
+// ---- Database: detail ----
+function dbPage() {
+  const d = dbs[st.item];
+  const pg = d.engine === 'PostgreSQL';
+  const url = pg ? `postgres://app:••••••••@${d.name}:${d.port}/app` : `redis://:••••••••@${d.name}:${d.port}`;
+  const body = {
+    overview: () => `
+      <h3 style="margin-top:16px">Now ${livePill()}</h3>
+      <div class="meters">${meter(d.name + ':conn', 'Connections', 'open', pg ? 'limit 100' : '')}${meter(d.name + ':qps', pg ? 'Queries' : 'Commands', 'each second')}${meter(d.name + ':cpu', 'Processor', '%')}${meter(d.name + ':mem', 'Memory', 'MB', `limit ${d.mem.split(' of ')[1]}`)}</div>
+      ${tail(d.name, 5)}
+      <h3>State</h3>
+      ${stats([['State', 'Good', 'on for 12 days'], ['Size', d.size, `limit ${d.limit} GB`], ['Last backup', d.backup, pg ? 'automatic' : '']])}
+      <h3>How an app connects</h3>
+      ${kv([
+        ['Name for the apps', `<span class="mono">${d.name}</span>`, small('Copy')],
+        ['Port', `<span class="mono">${d.port}</span>`, ''],
+        ...(pg ? [['Database and user', '<span class="mono">app</span> · <span class="mono">app</span>', '']] : []),
+        ['Password', '<span class="mono">••••••••••••••••</span>', small('Show') + ' ' + small('Copy')],
+        ['Connection text', `<span class="mono">${url}</span>`, small('Copy')],
+      ])}
+      <div class="note ok">A connected app gets the connection text in the variable <span class="mono">DATABASE_URL</span>. You do not copy the password by hand.</div>
+      <h3>Connected apps ${small('Connect an app', 'data-tab="access"')}</h3>
+      ${table(['App', 'Variable', 'Since'], d.apps.map((n) => [ok(`<b>${n}</b>`), `<span class="mono">${pg ? 'DATABASE_URL' : 'REDIS_URL'}</span>`, '29 Oct']))}
+      <h3>Storage</h3>
+      ${kv([['Tier', tier(d.tier), small('Change', 'data-tab="settings"')], ['Used', `<div class="inline"><div class="bar" style="width:160px"><i style="width:${d.pct}%"></i></div><span class="num">${d.size} of ${d.limit} GB</span></div>`, ''], ['Last backup', d.backup, small('Open', 'data-tab="backups"')]])}`,
+    backups: () => pg ? `
+      <h3>Schedule</h3>
+      <div class="card form">
+        ${row('Automatic backup', `<div class="inline">${sw(true, 'On')} each day at <input type="text" value="03:00" class="short"></div>`)}
+        ${row('Keep', '<div class="inline"><input class="short" type="number" value="14"> days</div>', 'NidaOS keeps the backups on the Standard tier: 61 GB used.')}
+      </div>
+      <h3>Backups <button class="btn">Back up now</button></h3>
+      ${table(['Date', 'Type', 'Size', 'Result', ''], [
+        ['today 03:00', 'automatic', '<span class="num">3.1 GB</span>', ok('Good'), small('Restore…') + ' ' + small('Download')],
+        ['yesterday 03:00', 'automatic', '<span class="num">3.1 GB</span>', ok('Good'), small('Restore…') + ' ' + small('Download')],
+        ['8 Nov 16:22', 'before the update to 18.1', '<span class="num">3.0 GB</span>', ok('Good'), small('Restore…') + ' ' + small('Download')],
+        ['8 Nov 03:00', 'automatic', '<span class="num">3.0 GB</span>', ok('Good'), small('Restore…') + ' ' + small('Download')],
+      ])}
+      <div class="note"><b>A restore makes a new database.</b> It does not replace ${d.name}. You examine the new database, then you connect the apps to it.</div>`
+      : `<div class="note" style="margin-top:16px">A cache has no backup. The apps make its data again when it is empty.</div>`,
+    access: () => `
+      <h3>Connected apps <button class="btn">Connect an app</button></h3>
+      ${table(['App', 'Variable', 'Since', ''], d.apps.map((n) => [ok(`<b>${n}</b>`), `<span class="mono">${pg ? 'DATABASE_URL' : 'REDIS_URL'}</span>`, '29 Oct', small('Disconnect')]))}
+      <div class="note ok">Only the connected apps can get to this database. Other apps cannot see it.</div>
+      <h3>From the home network</h3>
+      <div class="card form">
+        ${row('Open to the LAN', sw(d.lan, d.lan ? 'On' : 'Off'), 'For a database program on your PC. The connection uses TLS and the password.')}
+        ${row('Address', d.lan ? `<span class="mono">nidaos.local:${d.port + 10000}</span>` : '<span class="muted">not available while the switch is off</span>')}
+      </div>
+      <div class="note">NidaOS does not open a database to the internet.</div>
+      <h3>Password</h3>
+      <div class="card"><ul class="todo"><li><div class="grow"><b>Make a new password</b><small>NidaOS gives the new password to the connected apps and restarts them.</small></div><button class="btn">Make a new password…</button></li></ul></div>`,
+    settings: () => `
+      <h3>Version</h3>
+      ${kv([['In operation', `${d.engine} ${d.ver}`, ''], ['Available', pg ? `${d.engine} 18.2 · small update` : 'no update', pg ? small('Update…') : '']])}
+      ${pg ? '<div class="note">Before an update, NidaOS makes a backup. The database stops for approximately 20 seconds. NidaOS does not update a database without your approval.</div>' : ''}
+      <h3>Limits</h3>
+      <div class="card form">
+        ${row('Memory', `<div class="inline"><input class="short" type="number" value="${parseInt(d.mem.split(' of ')[1], 10)}"> GB</div>`, `Now: ${d.mem}.`)}
+        ${row('Size', `<div class="inline"><input class="short" type="number" value="${d.limit}"> GB</div>`, `Now: ${d.size}. NidaOS warns you at 80%.`)}
+        ${pg ? row('Connections', '<input class="short" type="number" value="100">') : ''}
+      </div>
+      <h3>Storage tier</h3>
+      ${tierPick('dbtier', d.tier)}
+      <div class="note">A move to a different tier stops the database during the copy: approximately 4 minutes for ${d.size}.</div>
+      <div class="inline" style="margin-top:16px"><button class="btn primary">Save</button><button class="btn">Cancel</button></div>`,
+    remove: () => `
+      <h3>Remove</h3>
+      <div class="card"><ul class="todo"><li><div class="grow"><b>Remove ${d.name}</b><small>${d.apps.length} connected app${d.apps.length > 1 ? 's' : ''} (${d.apps.join(', ')}) will lose the connection. NidaOS keeps the backups for 14 days, then it removes them.</small></div><button class="btn danger">Remove…</button></li></ul></div>`,
+  };
+  return `<button class="back" data-page="databases">← Databases</button>
+    <div class="head"><div><h1>${d.name}</h1><p class="lead">${ok('In operation')} · ${d.engine} ${d.ver} · ${tier(d.tier)}</p></div>
+      <button class="btn" data-page="logs">Open the logs</button><button class="btn">Restart</button>${pg ? '<button class="btn primary">Back up now</button>' : ''}</div>
+    ${tabs([['overview', 'Overview'], ['backups', 'Backups'], ['access', 'Access'], ['settings', 'Settings'], ['remove', 'Remove']])}
+    ${(body[st.tab] || body.overview)()}`;
+}
+
+// ---- Database: add ----
+function dbNew() {
+  return `<button class="back" data-page="databases">← Databases</button>
+    <div class="head"><div><h1>Add a database</h1><p class="lead">NidaOS starts a PostgreSQL database, makes the password and prepares the backups. The database is ready in approximately one minute.</p></div></div>
+    <div class="cols"><div>
+      <h3>The database</h3>
+      <div class="card form">
+        ${row('Name', '<input type="text" value="inventory-db">', 'The apps use this name to connect.')}
+        ${row('Version', '<select style="max-width:200px"><option>18 (recommended)</option><option>17</option></select>')}
+        ${row('Memory', '<div class="inline"><input class="short" type="number" value="1"> GB</div>', '20.6 GB are free on this computer.')}
+        ${row('Size limit', '<div class="inline"><input class="short" type="number" value="10"> GB</div>')}
+      </div>
+      <h3>Storage tier</h3>
+      ${tierPick('newdbtier', 'Performance')}
+      <h3>Backups</h3>
+      <div class="card form">
+        ${row('Automatic backup', `<div class="inline">${sw(true, 'On')} each day at <input type="text" value="03:00" class="short"></div>`)}
+        ${row('Keep', '<div class="inline"><input class="short" type="number" value="14"> days</div>')}
+      </div>
+      <h3>Access</h3>
+      <div class="card form">
+        ${row('Connect to an app', '<select><option>Later</option><option>shop-web</option><option>shop-api</option><option>photos</option><option>notes</option></select>', 'The app gets the variable <span class="mono">DATABASE_URL</span> and restarts.')}
+        ${row('Open to the LAN', sw(false, 'Off'), 'For a database program on your PC.')}
+      </div>
+    </div>
+    <aside class="card sum"><h4>inventory-db</h4>
+      <dl><dt>Type</dt><dd>PostgreSQL 18</dd><dt>Tier</dt><dd>Performance</dd><dt>Memory</dt><dd>1 GB</dd><dt>Size limit</dt><dd>10 GB</dd><dt>Backups</dt><dd>daily 03:00 · 14 days</dd><dt>Access</dt><dd>connected apps only</dd></dl>
+      <button class="btn primary" data-page="databases">Add the database</button>
+    </aside></div>`;
+}
+
+function draw() {
+  drawNav();
+  const views = { overview, logs: logsPage, app: appPage, 'app-new': appNew, db: dbPage, 'db-new': dbNew };
+  $('#page').innerHTML = views[st.at] ? views[st.at]() : list(lists[st.at]);
+  tick(false);
+}
+
+document.addEventListener('click', (e) => {
+  const open = e.target.closest('[data-open]'), tab = e.target.closest('[data-tab]'), page = e.target.closest('[data-page]');
+  if (e.target.closest('[data-pause]')) { paused = !paused; draw(); }
+  else if (tab) { st.tab = tab.dataset.tab; draw(); }
+  else if (open && !e.target.closest('tr[data-open] button')) {
+    const [kind, i] = open.dataset.open.split(':');
+    st.at = kind; st.item = +i; st.tab = 'overview'; draw(); scrollTo(0, 0);
+  } else if (page) { st.at = page.dataset.page; st.tab = 'overview'; draw(); scrollTo(0, 0); }
+});
+draw();
+// The timer changes only the live elements. Thus it does not reset a form.
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  let beat = 0;
+  setInterval(() => { if (paused) return; beat += 1; if (beat % 2 === 0) pushLine(); tick(true); }, 1500);
+}
+</script>
+</body>
+</html>

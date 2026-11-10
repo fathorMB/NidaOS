@@ -1,0 +1,6 @@
+{
+  "title": "Web console",
+  "description": "The primary interface of NidaOS in the browser: apps, databases, storage, updates, gateway, runners and agents.",
+  "group": "console",
+  "themes": ["light", "dark"]
+}

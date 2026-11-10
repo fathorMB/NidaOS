@@ -1,0 +1,4 @@
+# Local runtime caches and app preferences belong outside versioned knowledge.
+.cache/
+runtime/
+*.local.json

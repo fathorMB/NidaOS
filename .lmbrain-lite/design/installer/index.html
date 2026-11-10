@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NidaOS installer</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #f4efe9; --panel: #fffdfa; --sunk: #ebe4dc; --line: #d8cec3;
+  --text: #221b16; --muted: #6f6359; --accent: #c2501a; --on-accent: #fff8f2;
+  --sys: #5d544c; --perf: #c2501a; --std: #2f6c98;
+  --ok: #2e7d4f; --warn: #a66a00; --bad: #b3261e;
+  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --display: "Bahnschrift", "DIN Alternate", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --mono: "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12100e; --panel: #1b1816; --sunk: #151210; --line: #342d28;
+    --text: #efe7df; --muted: #a2968b; --accent: #f08a3e; --on-accent: #1a0f07;
+    --sys: #b9aea3; --perf: #f08a3e; --std: #7fb0d6;
+    --ok: #74c493; --warn: #e2b04a; --bad: #ef7d73;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 var(--font); }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.shell { min-height: 100vh; display: grid; grid-template-columns: 260px 1fr; }
+.rail { background: var(--sunk); border-right: 1px solid var(--line); padding: 28px 22px; display: flex; flex-direction: column; }
+.brand { display: flex; align-items: center; gap: 10px; font: 600 20px/1 var(--display); letter-spacing: .04em; }
+.brand svg { width: 26px; height: 26px; }
+.brand small { display: block; font: 12px/1.3 var(--font); color: var(--muted); letter-spacing: 0; margin-top: 3px; }
+.steps { list-style: none; margin: 36px 0 0; padding: 0; counter-reset: s; }
+.steps li { counter-increment: s; display: flex; gap: 12px; align-items: center; padding: 9px 0; color: var(--muted); }
+.steps li::before { content: counter(s); width: 24px; height: 24px; flex: none; display: grid; place-items: center;
+  border: 1px solid var(--line); border-radius: 50%; font: 12px/1 var(--mono); }
+.steps li.done { color: var(--text); }
+.steps li.done::before { content: "✓"; background: var(--text); color: var(--bg); border-color: var(--text); }
+.steps li.now { color: var(--text); font-weight: 600; }
+.steps li.now::before { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.machine { margin-top: auto; font: 12px/1.6 var(--mono); color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; }
+.machine b { color: var(--text); font-weight: 500; }
+
+main { display: flex; flex-direction: column; min-width: 0; }
+.page { flex: 1; padding: 44px 56px 24px; max-width: 980px; width: 100%; }
+.page[hidden] { display: none; }
+h1 { font: 600 34px/1.15 var(--display); margin: 0 0 8px; letter-spacing: .01em; text-wrap: balance; }
+.lead { color: var(--muted); margin: 0 0 28px; max-width: 62ch; }
+h2 { font: 600 13px/1 var(--font); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 28px 0 10px; }
+.bar { border-top: 1px solid var(--line); background: var(--panel); padding: 14px 56px; display: flex; gap: 12px; align-items: center; }
+.bar .hint { color: var(--muted); font-size: 13px; margin-right: auto; }
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 9px 18px; cursor: pointer; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.btn.danger { background: var(--bad); border-color: var(--bad); color: var(--bg); font-weight: 600; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.facts div { padding: 14px 16px; border-right: 1px solid var(--line); }
+.facts div:last-child { border-right: 0; }
+.facts dt { font-size: 12px; color: var(--muted); }
+.facts dd { margin: 2px 0 0; font: 14px/1.4 var(--mono); }
+.row { display: grid; grid-template-columns: 200px 1fr; gap: 14px; align-items: start; padding: 14px 16px; border-top: 1px solid var(--line); }
+.row:first-child { border-top: 0; }
+.row label, .row .lbl { font-weight: 600; padding-top: 7px; }
+.row .help { color: var(--muted); font-size: 13px; margin-top: 4px; }
+input[type=text], input[type=password], select, textarea { width: 100%; background: var(--sunk); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
+textarea { font: 12px/1.5 var(--mono); min-height: 62px; resize: vertical; }
+.radio { display: flex; gap: 8px; align-items: baseline; padding: 4px 0; }
+
+/* Disk plan */
+.disk { display: grid; grid-template-columns: 6px 1fr 150px 210px; gap: 0 18px; align-items: center; padding: 14px 16px 14px 0; border-top: 1px solid var(--line); }
+.disk:first-child { border-top: 0; }
+.disk .stripe { align-self: stretch; border-radius: 0 3px 3px 0; background: var(--line); }
+.disk[data-role=system] .stripe { background: var(--sys); }
+.disk[data-role=performance] .stripe { background: var(--perf); }
+.disk[data-role=standard] .stripe { background: var(--std); }
+.disk .name { font-weight: 600; }
+.disk .meta { font: 12px/1.5 var(--mono); color: var(--muted); }
+.speed { font: 13px/1.3 var(--mono); }
+.speed i { display: block; height: 4px; background: var(--sunk); border-radius: 2px; margin-top: 5px; overflow: hidden; }
+.speed i b { display: block; height: 100%; background: var(--text); }
+.tag { display: inline-block; font: 11px/1 var(--mono); padding: 3px 6px; border: 1px solid var(--line); border-radius: 4px; margin-left: 6px; color: var(--muted); vertical-align: 1px; }
+.why { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.layout { display: flex; height: 34px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); margin-top: 10px; }
+.layout span { display: flex; align-items: center; padding: 0 10px; font: 12px/1 var(--mono); color: var(--bg); white-space: nowrap; overflow: hidden; min-width: 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+.legend b { color: var(--text); }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; }
+.note { border-left: 3px solid var(--warn); background: var(--panel); padding: 10px 14px; margin-top: 16px; font-size: 14px; border-radius: 0 6px 6px 0; }
+.note.bad { border-color: var(--bad); }
+.note.ok { border-color: var(--ok); }
+
+.sum { width: 100%; border-collapse: collapse; }
+.sum th { text-align: left; font-weight: 400; color: var(--muted); width: 200px; }
+.sum th, .sum td { padding: 10px 16px; border-top: 1px solid var(--line); vertical-align: top; }
+.sum tr:first-child th, .sum tr:first-child td { border-top: 0; }
+.sum td { font: 13px/1.5 var(--mono); }
+
+.tasks { list-style: none; margin: 0; padding: 0; }
+.tasks li { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; padding: 11px 16px; border-top: 1px solid var(--line); color: var(--muted); }
+.tasks li:first-child { border-top: 0; }
+.tasks li.run, .tasks li.end { color: var(--text); }
+.tasks li::before { content: "·"; text-align: center; }
+.tasks li.run::before { content: "▸"; color: var(--accent); }
+.tasks li.end::before { content: "✓"; color: var(--ok); }
+.tasks time { font: 12px/1.9 var(--mono); color: var(--muted); }
+.meter { height: 6px; background: var(--sunk); border-radius: 3px; overflow: hidden; margin: 0 0 18px; border: 1px solid var(--line); }
+.meter b { display: block; height: 100%; width: 0; background: var(--accent); transition: width .5s; }
+.addr { font: 15px/1.4 var(--mono); }
+.sample { position: fixed; right: 12px; top: 10px; font: 11px/1 var(--mono); color: var(--muted); background: var(--panel); border: 1px solid var(--line); padding: 5px 8px; border-radius: 4px; }
+
+@media (max-width: 860px) {
+  .shell { grid-template-columns: 1fr; }
+  .rail { padding: 16px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .steps { margin-top: 14px; display: flex; gap: 6px; overflow-x: auto; }
+  .steps li { padding: 0; } .steps li span { display: none; } .steps li.now span { display: inline; white-space: nowrap; }
+  .machine { display: none; }
+  .page { padding: 24px 16px; } .bar { padding: 12px 16px; }
+  .row { grid-template-columns: 1fr; gap: 4px; }
+  .disk { grid-template-columns: 6px 1fr; row-gap: 10px; }
+  .disk .speed, .disk .role { grid-column: 2; }
+  .sum th { width: 110px; }
+}
+@media (prefers-reduced-motion: reduce) { .meter b { transition: none; } }
+</style>
+</head>
+<body>
+<div class="sample">mockup · sample data</div>
+<div class="shell">
+  <aside class="rail">
+    <div class="brand">
+      <svg viewBox="0 0 26 26" aria-hidden="true"><path d="M2 2h22v14l-8 8H2z" fill="var(--accent)"/><path d="M8 18V8l10 10V8" fill="none" stroke="var(--on-accent)" stroke-width="2.4"/></svg>
+      <div>NidaOS<small>Installer · build 45.1</small></div>
+    </div>
+    <ol class="steps" id="steps">
+      <li><span>Welcome</span></li>
+      <li><span>Disks</span></li>
+      <li><span>Access</span></li>
+      <li><span>Network</span></li>
+      <li><span>Review and erase</span></li>
+      <li><span>Install</span></li>
+    </ol>
+    <div class="machine">
+      <b>MSI B85M-G43</b><br>Intel i7-4790K · 32 GB<br>UEFI · Ethernet connected
+    </div>
+  </aside>
+
+  <main>
+    <!-- 1 Welcome -->
+    <section class="page" data-step="0">
+      <h1>Install NidaOS on this computer</h1>
+      <p class="lead">The installer examined the computer. It makes a plan for the disks, then you approve the plan. The installation erases all the disks that the plan uses.</p>
+      <dl class="card facts">
+        <div><dt>Computer</dt><dd>MSI B85M-G43</dd></div>
+        <div><dt>Processor</dt><dd>i7-4790K · 8 threads</dd></div>
+        <div><dt>Memory</dt><dd>32 GB</dd></div>
+        <div><dt>Disks</dt><dd>2 SSD · 1 HDD</dd></div>
+      </dl>
+      <h2>Language of the installer</h2>
+      <div class="card">
+        <div class="row"><label for="lang">Language</label><select id="lang"><option>English</option><option>Italiano</option></select></div>
+        <div class="row"><label for="kbd">Keyboard</label><select id="kbd"><option>Italian</option><option>English (US)</option></select></div>
+        <div class="row"><label for="tz">Time zone</label><select id="tz"><option>Europe/Rome</option><option>UTC</option></select></div>
+      </div>
+    </section>
+
+    <!-- 2 Disks -->
+    <section class="page" data-step="1" hidden>
+      <h1>The plan for the disks</h1>
+      <p class="lead">The installer measured the speed of each disk. The fastest disk gets the system. The other disks become storage tiers for your apps and databases.</p>
+      <div class="card" id="disks"></div>
+      <div id="plan-msg"></div>
+      <h2>Result</h2>
+      <div class="layout" id="layout"></div>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--sys)"></i><b>System</b> NidaOS and its updates</span>
+        <span><i class="dot" style="background:var(--perf)"></i><b>Performance</b> databases and fast apps</span>
+        <span><i class="dot" style="background:var(--std)"></i><b>Standard</b> large data, backups, default</span>
+      </div>
+    </section>
+
+    <!-- 3 Access -->
+    <section class="page" data-step="2" hidden>
+      <h1>Who can come in</h1>
+      <p class="lead">NidaOS has no default password. The administrator signs in with an SSH key. Remote Desktop gets its own password.</p>
+      <div class="card">
+        <div class="row"><label for="host">Computer name</label><div><input type="text" id="host" value="nidaos"><div class="help">Other computers find it as <span class="addr" style="font-size:13px" data-host>nidaos</span>.local</div></div></div>
+        <div class="row"><label for="user">Administrator</label><input type="text" id="user" value="nida"></div>
+        <div class="row"><div class="lbl">SSH key</div><div>
+          <label class="radio"><input type="radio" name="key" checked> Use the key on the USB volume <span class="tag">NIDASEED</span></label>
+          <label class="radio"><input type="radio" name="key"> Paste a public key</label>
+          <textarea readonly aria-label="Public key">ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI… operator@windows-pc</textarea>
+        </div></div>
+        <div class="row"><label for="rdp">Remote Desktop</label><div><input type="password" id="rdp" value="sample-sample"><div class="help">You use this password in the Remote Desktop program of Windows.</div></div></div>
+      </div>
+    </section>
+
+    <!-- 4 Network -->
+    <section class="page" data-step="3" hidden>
+      <h1>Network</h1>
+      <p class="lead">The computer has a cable connection. Keep the automatic address, or set a fixed address for a server.</p>
+      <div class="card">
+        <div class="row"><div class="lbl">Ethernet</div><div class="addr">Realtek · 1 Gbit/s · connected</div></div>
+        <div class="row"><div class="lbl">Address</div><div>
+          <label class="radio"><input type="radio" name="ip" checked> Automatic (DHCP) — now <span class="addr" style="font-size:13px">192.168.1.50</span></label>
+          <label class="radio"><input type="radio" name="ip"> Fixed address</label>
+        </div></div>
+        <div class="row"><div class="lbl">Internet gateway</div><div>
+          <label class="radio"><input type="radio" name="gw" checked> Connect a NidaOS gateway later, from the console</label>
+          <label class="radio"><input type="radio" name="gw"> Connect now with a pairing code</label>
+          <div class="help">The gateway is the small device that gives your apps a public address with sign-in.</div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- 5 Review -->
+    <section class="page" data-step="4" hidden>
+      <h1>Review, then erase</h1>
+      <p class="lead">This is the last step that you can cancel. After it, the installer erases the disks below.</p>
+      <div class="card"><table class="sum" id="summary"></table></div>
+      <div class="note bad"><b>These disks lose all their data.</b> <span id="erase-list"></span></div>
+      <h2>Confirm</h2>
+      <div class="card"><div class="row"><label for="confirm">Type the computer name</label><div><input type="text" id="confirm" autocomplete="off" placeholder="nidaos"><div class="help">The button becomes available when the name is correct.</div></div></div></div>
+    </section>
+
+    <!-- 6 Install -->
+    <section class="page" data-step="5" hidden>
+      <h1 id="inst-title">Installing NidaOS</h1>
+      <p class="lead" id="inst-lead">You can leave the computer. The installation needs approximately 6 minutes. The computer restarts at the end.</p>
+      <div class="meter"><b id="meter"></b></div>
+      <div class="card"><ul class="tasks" id="tasks">
+        <li>Erase the disks and make the partitions<time></time></li>
+        <li>Copy the system image<time></time></li>
+        <li>Prepare the storage tiers<time></time></li>
+        <li>Make the administrator and set the access<time></time></li>
+        <li>Install the boot loader<time></time></li>
+      </ul></div>
+      <div id="done" hidden>
+        <div class="note ok"><b>NidaOS is installed.</b> Remove the installation media, then restart.</div>
+        <h2>How to connect after the restart</h2>
+        <div class="card"><table class="sum">
+          <tr><th>Console</th><td>https://<span data-host>nidaos</span>.local</td></tr>
+          <tr><th>Remote Desktop</th><td><span data-host>nidaos</span>.local · port 3389</td></tr>
+          <tr><th>Terminal</th><td>ssh <span data-user>nida</span>@<span data-host>nidaos</span>.local</td></tr>
+        </table></div>
+      </div>
+    </section>
+
+    <div class="bar">
+      <span class="hint" id="hint"></span>
+      <button class="btn" id="back">Back</button>
+      <button class="btn primary" id="next">Continue</button>
+    </div>
+  </main>
+</div>
+
+<script>
+// Sample data: the disks of the operator computer. The speeds are examples.
+const disks = [
+  { id: 'sda', model: 'Seagate ST1000DM003', kind: 'HDD', bus: 'SATA', gb: 931.5, speed: 162, now: 'empty' },
+  { id: 'sdb', model: 'Kingston SA400S37', kind: 'SSD', bus: 'SATA', gb: 111.8, speed: 486, now: 'Ubuntu 24.04, 3 partitions' },
+  { id: 'sdc', model: 'SanDisk SDSSDHP128G', kind: 'SSD', bus: 'SATA', gb: 119.2, speed: 441, now: 'ext4, 1 partition' },
+];
+const proposed = { sda: 'standard', sdb: 'system', sdc: 'performance' };
+const why = {
+  sdb: 'Proposed: the fastest disk.',
+  sdc: 'Proposed: the second solid-state disk.',
+  sda: 'Proposed: the largest disk, and the slowest.',
+};
+const roles = { system: 'System', performance: 'Performance tier', standard: 'Standard tier', none: 'Do not use' };
+const colour = { system: 'var(--sys)', performance: 'var(--perf)', standard: 'var(--std)' };
+let plan = { ...proposed };
+let step = 0, installing = false, installed = false;
+const $ = (s) => document.querySelector(s);
+const maxSpeed = Math.max(...disks.map((d) => d.speed));
+
+function planProblem() {
+  const used = Object.values(plan).filter((r) => r !== 'none');
+  if (!used.includes('system')) return 'One disk must have the System role.';
+  if (new Set(used).size !== used.length) return 'Two disks have the same role. Give each role to one disk only.';
+  return '';
+}
+
+function drawDisks() {
+  $('#disks').innerHTML = disks.map((d) => `
+    <div class="disk" data-role="${plan[d.id]}">
+      <div class="stripe"></div>
+      <div><div class="name">${d.model}<span class="tag">${d.kind}</span></div>
+        <div class="meta">${d.id} · ${d.bus} · ${d.gb} GB · now: ${d.now}</div></div>
+      <div class="speed">${d.speed} MB/s<i><b style="width:${Math.round(d.speed / maxSpeed * 100)}%"></b></i></div>
+      <div class="role"><select data-disk="${d.id}" aria-label="Role of ${d.model}">
+        ${Object.entries(roles).map(([k, v]) => `<option value="${k}"${plan[d.id] === k ? ' selected' : ''}>${v}</option>`).join('')}
+      </select><div class="why">${plan[d.id] === proposed[d.id] ? why[d.id] : 'Changed by you.'}</div></div>
+    </div>`).join('');
+  const problem = planProblem();
+  const changed = disks.some((d) => plan[d.id] !== proposed[d.id]);
+  $('#plan-msg').innerHTML = problem
+    ? `<div class="note bad">${problem}</div>`
+    : changed ? '<div class="note">This is not the proposed plan. <button class="btn" id="reset">Use the proposed plan</button></div>' : '';
+  const used = disks.filter((d) => plan[d.id] !== 'none');
+  const order = ['system', 'performance', 'standard'];
+  used.sort((a, b) => order.indexOf(plan[a.id]) - order.indexOf(plan[b.id]));
+  $('#layout').innerHTML = used.map((d) =>
+    `<span style="background:${colour[plan[d.id]]};flex:${Math.max(d.gb, 180)}">${roles[plan[d.id]].replace(' tier', '')} · ${d.gb} GB</span>`).join('');
+}
+
+function drawSummary() {
+  const row = (k, v) => `<tr><th>${k}</th><td>${v}</td></tr>`;
+  const of = (r) => { const d = disks.find((x) => plan[x.id] === r); return d ? `${d.model} · ${d.gb} GB` : 'none'; };
+  $('#summary').innerHTML =
+    row('Computer name', $('#host').value) + row('Administrator', $('#user').value + ' · SSH key from NIDASEED') +
+    row('System', of('system')) + row('Performance tier', of('performance')) + row('Standard tier', of('standard')) +
+    row('Network', 'Ethernet · automatic address');
+  $('#erase-list').textContent = disks.filter((d) => plan[d.id] !== 'none').map((d) => `${d.model} (${d.now})`).join(', ') + '.';
+  $('#confirm').placeholder = $('#host').value;
+}
+
+function draw() {
+  document.querySelectorAll('.page').forEach((p) => { p.hidden = +p.dataset.step !== step; });
+  [...$('#steps').children].forEach((li, i) => { li.className = i < step || installed ? 'done' : i === step ? 'now' : ''; });
+  document.querySelectorAll('[data-host]').forEach((e) => { e.textContent = $('#host').value || 'nidaos'; });
+  document.querySelectorAll('[data-user]').forEach((e) => { e.textContent = $('#user').value || 'nida'; });
+  const next = $('#next'), back = $('#back');
+  back.hidden = step === 0 || step === 5;
+  next.className = 'btn primary'; next.disabled = false; next.hidden = false; next.textContent = 'Continue';
+  $('#hint').textContent = '';
+  if (step === 1) { drawDisks(); next.disabled = !!planProblem(); }
+  if (step === 4) {
+    drawSummary(); next.className = 'btn danger'; next.textContent = 'Erase the disks and install';
+    next.disabled = $('#confirm').value.trim() !== $('#host').value.trim();
+    $('#hint').textContent = 'You cannot cancel after this step.';
+  }
+  if (step === 5) { next.textContent = 'Restart'; next.hidden = !installed; if (!installing) runInstall(); }
+}
+
+function runInstall() {
+  installing = true;
+  const items = [...$('#tasks').children];
+  const secs = ['0:21', '3:48', '0:34', '0:06', '0:19'];
+  let i = 0;
+  const tick = () => {
+    if (i > 0) { items[i - 1].className = 'end'; items[i - 1].querySelector('time').textContent = secs[i - 1]; }
+    $('#meter').style.width = Math.round(i / items.length * 100) + '%';
+    if (i === items.length) {
+      installed = true; $('#done').hidden = false;
+      $('#inst-title').textContent = 'NidaOS is ready';
+      $('#inst-lead').textContent = 'The installation is complete. The plan for the disks is saved on the computer.';
+      draw(); return;
+    }
+    items[i].className = 'run'; i += 1; setTimeout(tick, 1400);
+  };
+  tick();
+}
+
+$('#next').addEventListener('click', () => { if (step < 5) { step += 1; draw(); } });
+$('#back').addEventListener('click', () => { if (step > 0) { step -= 1; draw(); } });
+document.addEventListener('change', (e) => { if (e.target.dataset.disk) { plan[e.target.dataset.disk] = e.target.value; draw(); } });
+document.addEventListener('click', (e) => { if (e.target.id === 'reset') { plan = { ...proposed }; draw(); } });
+$('#confirm').addEventListener('input', draw);
+draw();
+</script>
+</body>
+</html>

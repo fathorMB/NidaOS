@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "areas": [],
+  "categories": {
+    "spike": [],
+    "tooling": [],
+    "docs": []
+  },
+  "test_patterns": [],
+  "test_counters": [],
+  "exclude": [],
+  "coupling_max_commit_files": 30
+}
