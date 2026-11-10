@@ -44,8 +44,17 @@ if [ -n "$nida_seed" ]; then
 fi
 %end
 
-%post --nochroot
-mkdir -p /mnt/sysimage/etc/nidaos
-cp /tmp/nida-plan.txt /mnt/sysimage/etc/nidaos/install-plan.txt || true
-cp /tmp/nida-pre.log /mnt/sysimage/etc/nidaos/install-pre.log || true
+%post --nochroot --log=/tmp/nida-post.log
+# Keep the disk plan in /var of the installed system.
+# The installer mounts the new root file system. Find it by its ostree directory.
+findmnt -rno TARGET | while read -r target; do
+    var_dir="$target/ostree/deploy/default/var"
+    if [ -d "$var_dir" ]; then
+        mkdir -p "$var_dir/lib/nidaos"
+        cp /tmp/nida-plan.txt "$var_dir/lib/nidaos/install-plan.txt"
+        cp /tmp/nida-pre.log "$var_dir/lib/nidaos/install-pre.log"
+        echo "plan saved in $var_dir/lib/nidaos"
+        break
+    fi
+done
 %end

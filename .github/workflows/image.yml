@@ -15,6 +15,7 @@ on:
     paths:
       - image/**
       - installer/**
+      - tests/**
       - scripts/**
       - .github/workflows/image.yml
 
@@ -88,6 +89,8 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         if: always()
+        # The account can have no free artifact storage. The report is also in the log.
+        continue-on-error: true
         with:
           name: vm-test-results
           path: out/results

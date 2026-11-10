@@ -16,6 +16,7 @@ set -euo pipefail
 
 ISO=$(realpath "$1")
 WORK=$2
+REPO=$(cd "$(dirname "$0")/.." && pwd)
 INSTALL_TIMEOUT=${INSTALL_TIMEOUT:-3000}
 BOOT_TIMEOUT=${BOOT_TIMEOUT:-600}
 VM_CPUS=${VM_CPUS:-2}
@@ -119,7 +120,7 @@ screenshot screen-boot.png
     echo "## lsblk"
     "${SSH[@]}" lsblk -o NAME,SIZE,ROTA,TYPE,FSTYPE,LABEL,MOUNTPOINTS
     echo "## install plan"
-    "${SSH[@]}" cat /etc/nidaos/install-plan.txt
+    "${SSH[@]}" sudo cat /var/lib/nidaos/install-plan.txt || echo "(no plan file)"
     echo "## nidaos release"
     "${SSH[@]}" cat /usr/lib/nidaos/release
 } | tee report.txt
@@ -145,6 +146,49 @@ check() {
 check system /sysroot "$SIZE_SSD_A 0"
 check performance /var/nida/performance "$SIZE_SSD_B 0"
 check standard /var/nida/standard "$SIZE_HDD 1"
+
+expect() {
+    local label=$1
+    shift
+    if "$@"; then
+        echo "PASS $label" | tee -a report.txt
+    else
+        echo "FAIL $label" | tee -a report.txt
+        failures=$((failures + 1))
+    fi
+}
+
+expect "the installed system keeps the disk plan" \
+    "${SSH[@]}" sudo grep -q '^os=' /var/lib/nidaos/install-plan.txt
+
+echo "==> Examine k3s and the two storage tiers"
+k3s_ready() {
+    local waited=0
+    until "${SSH[@]}" sudo k3s kubectl wait --for=condition=Ready node --all --timeout=10s > /dev/null 2>&1; do
+        [ "$waited" -ge 600 ] && return 1
+        sleep 10
+        waited=$((waited + 10))
+    done
+}
+storage_proof() {
+    "${SSH[@]}" sudo k3s kubectl apply -f - < "$REPO/tests/storage-proof.yaml" &&
+        "${SSH[@]}" sudo k3s kubectl wait --for=condition=Ready pod/nida-storage-proof --timeout=600s
+}
+expect "the k3s node is ready" k3s_ready
+expect "one pod uses a volume of each storage tier" storage_proof
+expect "the performance volume is on the performance disk" \
+    "${SSH[@]}" "sudo sh -c 'grep -qx performance /var/nida/performance/volumes/*/proof.txt'"
+expect "the standard volume is on the standard disk" \
+    "${SSH[@]}" "sudo sh -c 'grep -qx standard /var/nida/standard/volumes/*/proof.txt'"
+{
+    echo "## k3s"
+    "${SSH[@]}" sudo k3s kubectl get nodes,storageclass,pvc,pods -A -o wide || true
+    "${SSH[@]}" sudo k3s kubectl describe pod nida-storage-proof | tail -n 15 || true
+    echo "## failed units"
+    "${SSH[@]}" systemctl --failed --no-pager || true
+    echo "## selinux"
+    "${SSH[@]}" getenforce || true
+} | tee -a report.txt
 
 "${SSH[@]}" sudo systemctl poweroff || true
 for _ in $(seq 1 30); do
