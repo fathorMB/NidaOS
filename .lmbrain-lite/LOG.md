@@ -47,3 +47,10 @@ One line per action. Format: `timestamp | by:<who> | <target or -> | <kind> | <m
 2026-11-10T23:27 | by:lead | M-11/T-08 | task | added 'Make a local build and test cycle that is shorter than the 30 minutes of the full cycle'
 2026-11-10T23:30 | by:lead | MEM-001 | memory | updated project memory
 2026-11-10T23:30 | by:lead | - | note | End of the session: the lead updated PROJECT.md, added knowledge/testing.md, and committed the brain and the report to the branch m01-feasibility.
+2026-11-10T23:31 | by:operator | M-02 | status | proposed -> approved
+2026-11-10T23:32 | by:lead | M-01/T-01 | task | blocked: The script vm/new-vm.ps1 is ready. The operator must run it as administrator on the Windows computer. — Write the scripts that make a UEFI virtual machine with three virtual disks on Hyper-V
+2026-11-10T23:32 | by:lead | M-01/T-06 | task | blocked: Run 8 in QEMU proved the desktop and the RDP sign-in. The operator must connect from Windows with Remote Desktop. — Add a minimal desktop and connect to it from Windows with Remote Desktop
+2026-11-10T23:32 | by:lead | M-02 | status | approved -> active: The operator approved M-02. M-01 stays open with two tasks blocked until the operator does the manual checks.
+2026-11-10T23:36 | by:lead | M-02/T-01 | task | done: The Go module core/ has the structure of GitStack core: configuration from environment variables, JSON log, clean stop, health paths and a JSON error format. go vet, go test and the Linux build pass. The workflow core.yml runs the same checks. — Make the Go project of the core service from the structure of GitStack core
+2026-11-10T23:36 | by:lead | M-02/T-01 | decision | The core service uses only the Go standard library and runs on the host as a systemd service, not in a container, because it must read /proc, the disks and the journal; NATS and PostgreSQL of GitStack core are not necessary.
+2026-11-10T23:36 | by:lead | M-02/T-01 | test | Local run on Windows: gofmt, go vet and go test ./... pass, and the build for Linux passes.
