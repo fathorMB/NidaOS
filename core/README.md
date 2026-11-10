@@ -34,6 +34,9 @@ go test ./...      # run the tests
 | `NIDA_CORE_METRICS_INTERVAL` | `2s` | The time between two metric snapshots. The minimum is `250ms`. |
 | `NIDA_CORE_JOURNALCTL` | `journalctl` | The command that reads the systemd journal. `off` stops the journal source. |
 | `NIDA_CORE_LOG_BUFFER_LINES` | `5000` | The number of log lines in memory, for the new clients and the reconnections. |
+| `NIDA_CORE_LOG_DIR` | `/var/lib/nidaos/logs` | The directory of the log store. `off` keeps the logs only in memory. |
+| `NIDA_CORE_LOG_RETENTION` | `30d` | The time that the store keeps the log lines (for example `30d` or `720h`). |
+| `NIDA_CORE_LOG_MAX_SIZE` | `10G` | The maximum size of the log store. The store deletes the oldest days first. `0` is no limit. |
 
 To run the service on a development computer, use the copy of a NidaOS host in the tests:
 
@@ -56,6 +59,7 @@ NIDA_CORE_ROOT=internal/system/testdata/host go run .
 | `GET /api/v1/metrics/stream` | The live stream of the metric snapshots (Server-Sent Events). |
 | `GET /api/v1/logs` | The last log lines in memory. |
 | `GET /api/v1/logs/stream` | The live stream of the log lines (Server-Sent Events). |
+| `GET /api/v1/logs/search` | A search in the log lines of the last 30 days. |
 
 ## Live metrics
 
@@ -107,4 +111,18 @@ Both log paths accept these parameters:
 
 The stream sends the old lines first, then each new line as the event `log`. The `id` of an event is the `seq` of its line. When a browser connects again, it sends the header `Last-Event-ID`. Then the stream sends the lines that the client did not get, if they are still in memory. When a client is too slow and does not get some lines, the stream sends the event `dropped` with the number of lost lines.
 
-The memory keeps only the last lines. The storage for 30 days and the search in the old lines come in task T-05.
+## Log store and search
+
+The store keeps each log line on the disk for 30 days. It has one file for each day (UTC), with one JSON object on each line. At the end of a day, the store compresses the file with gzip. Each hour, the store deletes the days that are older than the retention. When the files are larger than the maximum size, it also deletes the oldest days. The store never deletes the file of today.
+
+The journal reader keeps the cursor of its last entry in `journal.cursor` in the log directory. After a restart of the service, the reader continues after this entry. Thus the store also gets the lines of the journal from the stop time. The pod files are read from their end after a restart: the lines of the pods from the stop time are not in the store.
+
+`GET /api/v1/logs/search` accepts `source`, `level` and `q` as the stream, and also:
+
+| Parameter | Usage |
+| --- | --- |
+| `since`, `until` | A time in RFC 3339, or a duration before now, for example `90m`, `2h` or `7d`. |
+| `limit` | The maximum number of lines, from 1 to 1000. The default is 100. |
+| `cursor` | The `next_cursor` of the previous page. |
+
+The result gives the lines, the newest first, and `next_cursor` for the next page (older lines). A cursor stays valid when new lines come. When the search reads files for more than 10 seconds, it stops, sets `partial` to `true` and gives a cursor to continue.

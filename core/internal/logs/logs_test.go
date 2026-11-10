@@ -56,7 +56,7 @@ func TestFilter(t *testing.T) {
 }
 
 func TestParseJournal(t *testing.T) {
-	l, ok := parseJournal([]byte(`{"__REALTIME_TIMESTAMP":"1762776000000000","PRIORITY":"4",` +
+	l, _, ok := parseJournal([]byte(`{"__REALTIME_TIMESTAMP":"1762776000000000","PRIORITY":"4",` +
 		`"_SYSTEMD_UNIT":"k3s.service","SYSLOG_IDENTIFIER":"k3s","MESSAGE":"slow disk\n"}`))
 	if !ok || l.Source.ID != "service/k3s" || l.Level != LevelWarning || l.Message != "slow disk" ||
 		!l.Time.Equal(time.UnixMicro(1762776000000000)) {
@@ -64,26 +64,26 @@ func TestParseJournal(t *testing.T) {
 	}
 
 	// The kernel has no unit. A JSON message of nida-core gives its level.
-	l, _ = parseJournal([]byte(`{"PRIORITY":"6","SYSLOG_IDENTIFIER":"kernel","MESSAGE":"usb 1-1: new device"}`))
+	l, _, _ = parseJournal([]byte(`{"PRIORITY":"6","SYSLOG_IDENTIFIER":"kernel","MESSAGE":"usb 1-1: new device"}`))
 	if l.Source.Name != "kernel" || l.Level != LevelInfo {
 		t.Errorf("kernel line = %+v", l)
 	}
-	l, _ = parseJournal([]byte(`{"PRIORITY":"6","_SYSTEMD_UNIT":"nida-core.service","MESSAGE":"{\"level\":\"ERROR\",\"msg\":\"x\"}"}`))
+	l, _, _ = parseJournal([]byte(`{"PRIORITY":"6","_SYSTEMD_UNIT":"nida-core.service","MESSAGE":"{\"level\":\"ERROR\",\"msg\":\"x\"}"}`))
 	if l.Source.Name != "nida-core" || l.Level != LevelError {
 		t.Errorf("nida-core line = %+v", l)
 	}
 
 	// A session scope uses the program name. A message that is not UTF-8
 	// comes as an array of bytes.
-	l, _ = parseJournal([]byte(`{"PRIORITY":"2","_SYSTEMD_UNIT":"session-3.scope","SYSLOG_IDENTIFIER":"sudo","MESSAGE":[104,105,255]}`))
+	l, _, _ = parseJournal([]byte(`{"PRIORITY":"2","_SYSTEMD_UNIT":"session-3.scope","SYSLOG_IDENTIFIER":"sudo","MESSAGE":[104,105,255]}`))
 	if l.Source.Name != "sudo" || l.Level != LevelError || l.Message != "hi�" {
 		t.Errorf("bytes line = %+v", l)
 	}
 
-	if _, ok := parseJournal([]byte(`not json`)); ok {
+	if _, _, ok := parseJournal([]byte(`not json`)); ok {
 		t.Error("bad JSON must be ignored")
 	}
-	if _, ok := parseJournal([]byte(`{"PRIORITY":"6"}`)); ok {
+	if _, _, ok := parseJournal([]byte(`{"PRIORITY":"6"}`)); ok {
 		t.Error("an entry without a message must be ignored")
 	}
 }
@@ -91,7 +91,7 @@ func TestParseJournal(t *testing.T) {
 func TestJournalRun(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	j := &Journal{Logger: quiet, open: func(context.Context) (io.ReadCloser, func() error, error) {
+	j := &Journal{Logger: quiet, open: func(context.Context, string) (io.ReadCloser, func() error, error) {
 		data := `{"MESSAGE":"one","_SYSTEMD_UNIT":"a.service"}` + "\n" + `{"MESSAGE":"two","_SYSTEMD_UNIT":"b.service"}` + "\n"
 		return io.NopCloser(strings.NewReader(data)), func() error { return errors.New("exit 1") }, nil
 	}}

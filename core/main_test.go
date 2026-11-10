@@ -43,7 +43,12 @@ func TestServeAndStop(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	cfg := config.Config{ShutdownTimeout: 2 * time.Second, Root: "internal/system/testdata/host"}
+	cfg := config.Config{
+		ShutdownTimeout: 2 * time.Second,
+		Root:            "internal/system/testdata/host",
+		PodLogDir:       "/var/log/pods",
+		LogDir:          t.TempDir(),
+	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	done := make(chan error, 1)
@@ -58,13 +63,15 @@ func TestServeAndStop(t *testing.T) {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
 
-	resp, err = http.Get("http://" + ln.Addr().String() + "/api/v1/state")
-	if err != nil {
-		t.Fatalf("GET /api/v1/state: %v", err)
-	}
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("/api/v1/state: status = %d", resp.StatusCode)
+	for _, path := range []string{"/api/v1/state", "/api/v1/logs/search?since=1h"} {
+		resp, err = http.Get("http://" + ln.Addr().String() + path)
+		if err != nil {
+			t.Fatalf("GET %s: %v", path, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("%s: status = %d", path, resp.StatusCode)
+		}
 	}
 
 	// Open a live stream. The stop must not wait for it.

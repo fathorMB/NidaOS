@@ -86,6 +86,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 // serve runs the HTTP server on ln until ctx stops. Then it waits for the
 // open requests for a maximum of cfg.ShutdownTimeout.
 func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog.Logger) error {
+	ctx, stopAll := context.WithCancel(ctx)
+	defer stopAll()
+
 	interval := cfg.MetricsInterval
 	if interval <= 0 {
 		interval = config.DefaultMetricsInterval
@@ -94,22 +97,58 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 	go sampler.Run(ctx)
 
 	pipeline := logs.NewPipeline(cfg.LogBufferLines)
+	deps := httpserver.Deps{
+		Logger:  logger,
+		State:   system.NewCollector(cfg.Root, cfg.PlanFile),
+		Metrics: sampler.Hub,
+		Logs:    pipeline,
+	}
+
+	// The log store. Without it, the service keeps the logs only in memory.
+	var store *logs.Store
+	journalState := ""
+	if cfg.LogDir != "" {
+		var err error
+		store, err = logs.OpenStore(cfg.LogDir, cfg.LogRetention, cfg.LogMaxBytes, logger)
+		if err != nil {
+			logger.Error("the log store is not available: the logs stay only in memory", "err", err)
+		} else {
+			pipeline.Sink = store.Append
+			deps.LogStore = store
+			journalState = filepath.Join(cfg.LogDir, "journal.cursor")
+		}
+	}
+
 	readers := []logs.Reader{&logs.Pods{
 		Dir:    filepath.Join(cfg.Root, filepath.FromSlash(cfg.PodLogDir)),
 		Logger: logger,
 	}}
 	if len(cfg.Journalctl) > 0 {
-		readers = append(readers, &logs.Journal{Command: cfg.Journalctl, Logger: logger})
+		readers = append(readers, &logs.Journal{Command: cfg.Journalctl, Logger: logger, StateFile: journalState})
 	}
-	go pipeline.RunSources(ctx, readers...)
+	sourcesDone := make(chan struct{})
+	go func() {
+		pipeline.RunSources(ctx, readers...)
+		close(sourcesDone)
+	}()
+	// The store closes after the sources: it writes their last lines.
+	storeDone := make(chan struct{})
+	if store != nil {
+		go func() {
+			store.Run(sourcesDone)
+			close(storeDone)
+		}()
+	} else {
+		close(storeDone)
+	}
+	defer func() {
+		stopAll() // also when the server stops with an error
+		<-sourcesDone
+		<-storeDone
+	}()
 
 	srv := &http.Server{
-		Handler: httpserver.NewRouter(httpserver.Deps{
-			Logger:  logger,
-			State:   system.NewCollector(cfg.Root, cfg.PlanFile),
-			Metrics: sampler.Hub,
-			Logs:    pipeline,
-		}),
+		Handler:           httpserver.NewRouter(deps),
 		ReadHeaderTimeout: 10 * time.Second,
 		// No WriteTimeout: the live streams keep the connection open.
 		IdleTimeout: 120 * time.Second,

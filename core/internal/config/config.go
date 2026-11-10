@@ -48,6 +48,17 @@ type Config struct {
 
 	// LogBufferLines is the number of log lines in memory.
 	LogBufferLines int
+
+	// LogDir is the directory of the log store (an absolute path of the
+	// host, not from Root). It is empty when the value is "off": then the
+	// service keeps the logs only in memory.
+	LogDir string
+
+	// LogRetention is the time that the store keeps the log lines.
+	LogRetention time.Duration
+
+	// LogMaxBytes is the maximum size of the log store. 0 is no limit.
+	LogMaxBytes int64
 }
 
 // Defaults of the configuration.
@@ -62,6 +73,9 @@ const (
 	// too much processor time.
 	MinMetricsInterval    = 250 * time.Millisecond
 	DefaultLogBufferLines = 5000
+	DefaultLogDir         = "/var/lib/nidaos/logs"
+	DefaultLogRetention   = 30 * 24 * time.Hour
+	DefaultLogMaxBytes    = 10 << 30 // 10 GiB
 )
 
 // DefaultJournalctl is the default command for the journal.
@@ -85,6 +99,9 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 		MetricsInterval: DefaultMetricsInterval,
 		Journalctl:      DefaultJournalctl,
 		LogBufferLines:  DefaultLogBufferLines,
+		LogDir:          DefaultLogDir,
+		LogRetention:    DefaultLogRetention,
+		LogMaxBytes:     DefaultLogMaxBytes,
 	}
 
 	if v := strings.TrimSpace(getenv(Prefix + "ADDR")); v != "" {
@@ -139,5 +156,55 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 		cfg.LogBufferLines = n
 	}
 
+	if v := strings.TrimSpace(getenv(Prefix + "LOG_DIR")); v != "" {
+		if v == "off" {
+			cfg.LogDir = ""
+		} else {
+			cfg.LogDir = v
+		}
+	}
+
+	if v := strings.TrimSpace(getenv(Prefix + "LOG_RETENTION")); v != "" {
+		d, err := parseDays(v)
+		if err != nil || d < time.Hour {
+			return Config{}, fmt.Errorf("%sLOG_RETENTION: the value %q is not a duration of 1h or more (for example 30d or 720h)", Prefix, v)
+		}
+		cfg.LogRetention = d
+	}
+
+	if v := strings.TrimSpace(getenv(Prefix + "LOG_MAX_SIZE")); v != "" {
+		n, err := parseSize(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("%sLOG_MAX_SIZE: %w", Prefix, err)
+		}
+		cfg.LogMaxBytes = n
+	}
+
 	return cfg, nil
+}
+
+// parseDays reads a duration. It also accepts days, for example "30d".
+func parseDays(v string) (time.Duration, error) {
+	if n, ok := strings.CutSuffix(v, "d"); ok {
+		days, err := strconv.Atoi(n)
+		if err != nil {
+			return 0, err
+		}
+		return time.Duration(days) * 24 * time.Hour, nil
+	}
+	return time.ParseDuration(v)
+}
+
+// parseSize reads a size in bytes with an optional unit: K, M, G or T
+// (powers of 1024). "0" is no limit.
+func parseSize(v string) (int64, error) {
+	units := map[string]int64{"": 1, "K": 1 << 10, "M": 1 << 20, "G": 1 << 30, "T": 1 << 40}
+	s := strings.ToUpper(strings.TrimSuffix(strings.TrimSuffix(strings.ToUpper(v), "B"), "I"))
+	num := strings.TrimRight(s, "KMGT")
+	mul, ok := units[s[len(num):]]
+	n, err := strconv.ParseInt(num, 10, 64)
+	if !ok || err != nil || n < 0 {
+		return 0, fmt.Errorf("the value %q is not a size (for example 10G)", v)
+	}
+	return n * mul, nil
 }

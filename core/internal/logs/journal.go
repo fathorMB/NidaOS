@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -20,12 +21,24 @@ type Journal struct {
 	// "journalctl".
 	Command []string
 	Logger  *slog.Logger
-	// open starts the reader. The tests replace it.
-	open func(ctx context.Context) (io.ReadCloser, func() error, error)
+	// StateFile keeps the cursor of the last entry. After a restart of the
+	// service, the reader continues after this entry, thus the store gets
+	// the lines of the stop time too. Empty: the reader starts with the
+	// new lines.
+	StateFile string
+	// open starts the reader after the cursor. The tests replace it.
+	open func(ctx context.Context, cursor string) (io.ReadCloser, func() error, error)
+
+	cursor    string
+	savedAt   time.Time
+	savedCurs string
 }
 
 // journalRetry is the wait before journalctl starts again after a stop.
 const journalRetry = 5 * time.Second
+
+// cursorSaveInterval is the maximum time between two writes of the cursor.
+const cursorSaveInterval = 2 * time.Second
 
 // Run reads the new lines of the journal until ctx stops. If journalctl
 // stops, Run starts it again.
@@ -34,15 +47,25 @@ func (j *Journal) Run(ctx context.Context, emit func(Line)) {
 	if open == nil {
 		open = j.exec
 	}
+	j.loadCursor()
+	defer j.saveCursor(true)
 	for ctx.Err() == nil {
-		r, wait, err := open(ctx)
+		start := j.cursor
+		r, wait, err := open(ctx, start)
 		if err != nil {
 			j.Logger.Warn("the journal reader cannot start", "err", err)
 		} else {
-			readJournal(r, emit)
+			n := readJournal(r, emit, j.setCursor)
 			r.Close()
 			if err := wait(); err != nil && ctx.Err() == nil {
 				j.Logger.Warn("the journal reader stopped", "err", err)
+				// journalctl stops at once when the journal does not have
+				// the cursor any more (for example after a rotation).
+				// Then start again with the new lines.
+				if n == 0 && start != "" {
+					j.Logger.Warn("the journal cursor is not valid: the reader starts with the new lines")
+					j.cursor = ""
+				}
 			}
 		}
 		select {
@@ -52,13 +75,18 @@ func (j *Journal) Run(ctx context.Context, emit func(Line)) {
 	}
 }
 
-func (j *Journal) exec(ctx context.Context) (io.ReadCloser, func() error, error) {
+func (j *Journal) exec(ctx context.Context, cursor string) (io.ReadCloser, func() error, error) {
 	cmd := j.Command
 	if len(cmd) == 0 {
 		cmd = []string{"journalctl"}
 	}
-	// --lines=0: only the new lines. The history is in the store (T-05).
-	args := append(append([]string{}, cmd[1:]...), "--follow", "--output=json", "--lines=0", "--no-pager")
+	args := append(append([]string{}, cmd[1:]...), "--follow", "--output=json", "--no-pager")
+	if cursor != "" {
+		args = append(args, "--after-cursor="+cursor)
+	} else {
+		// Only the new lines. The older lines are in the store.
+		args = append(args, "--lines=0")
+	}
 	c := exec.CommandContext(ctx, cmd[0], args...)
 	out, err := c.StdoutPipe()
 	if err != nil {
@@ -70,29 +98,41 @@ func (j *Journal) exec(ctx context.Context) (io.ReadCloser, func() error, error)
 	return out, c.Wait, nil
 }
 
-// readJournal reads the JSON lines of journalctl until the end of r.
-func readJournal(r io.Reader, emit func(Line)) {
+// readJournal reads the JSON lines of journalctl until the end of r. It
+// gives the cursor of each entry to cursor, and the number of entries.
+func readJournal(r io.Reader, emit func(Line), cursor func(string)) int {
 	sc := bufio.NewScanner(r)
 	// A journal entry can be long, for example a stack trace.
 	sc.Buffer(make([]byte, 64*1024), 1024*1024)
+	n := 0
 	for sc.Scan() {
-		if l, ok := parseJournal(sc.Bytes()); ok {
+		l, c, ok := parseJournal(sc.Bytes())
+		if c != "" {
+			n++
+		}
+		if ok {
 			emit(l)
 		}
+		if c != "" && cursor != nil {
+			cursor(c)
+		}
 	}
+	return n
 }
 
-// parseJournal converts one JSON entry of journalctl.
-func parseJournal(b []byte) (Line, bool) {
+// parseJournal converts one JSON entry of journalctl. It also gives the
+// cursor of the entry. ok is false for an entry without a message.
+func parseJournal(b []byte) (l Line, cursor string, ok bool) {
 	var e map[string]json.RawMessage
 	if err := json.Unmarshal(b, &e); err != nil {
-		return Line{}, false
+		return Line{}, "", false
 	}
+	cursor = journalString(e["__CURSOR"])
 	msg := journalString(e["MESSAGE"])
 	if msg == "" {
-		return Line{}, false
+		return Line{}, cursor, false
 	}
-	l := Line{Message: strings.TrimRight(msg, "\n"), Time: time.Now().UTC()}
+	l = Line{Message: strings.TrimRight(msg, "\n"), Time: time.Now().UTC()}
 	if us, err := strconv.ParseInt(journalString(e["__REALTIME_TIMESTAMP"]), 10, 64); err == nil {
 		l.Time = time.UnixMicro(us).UTC()
 	}
@@ -127,7 +167,7 @@ func parseJournal(b []byte) (Line, bool) {
 	if l.Level == LevelInfo {
 		l.Level = DetectLevel(l.Message, LevelInfo)
 	}
-	return l, true
+	return l, cursor, true
 }
 
 // journalString reads a field of journalctl. A field is a string, or an
@@ -150,4 +190,47 @@ func journalString(raw json.RawMessage) string {
 		return strings.ToValidUTF8(string(bs), "�")
 	}
 	return ""
+}
+
+// setCursor keeps the cursor of the last entry and writes it to the state
+// file at most each cursorSaveInterval.
+func (j *Journal) setCursor(c string) {
+	j.cursor = c
+	j.saveCursor(false)
+}
+
+// loadCursor reads the state file. A missing file gives no cursor.
+func (j *Journal) loadCursor() {
+	if j.StateFile == "" {
+		return
+	}
+	b, err := os.ReadFile(j.StateFile)
+	if err != nil {
+		return
+	}
+	j.cursor = strings.TrimSpace(string(b))
+	j.savedCurs = j.cursor
+}
+
+// saveCursor writes the cursor to the state file. Without force, it writes
+// only when the last write is older than cursorSaveInterval.
+func (j *Journal) saveCursor(force bool) {
+	if j.StateFile == "" || j.cursor == j.savedCurs {
+		return
+	}
+	if !force && time.Since(j.savedAt) < cursorSaveInterval {
+		return
+	}
+	// Write a new file, then rename it: a stop during the write does not
+	// leave half a cursor.
+	tmp := j.StateFile + ".tmp"
+	if err := os.WriteFile(tmp, []byte(j.cursor+"\n"), 0o640); err != nil {
+		j.Logger.Warn("the journal reader cannot save its cursor", "err", err)
+		return
+	}
+	if err := os.Rename(tmp, j.StateFile); err != nil {
+		j.Logger.Warn("the journal reader cannot save its cursor", "err", err)
+		return
+	}
+	j.savedAt, j.savedCurs = time.Now(), j.cursor
 }

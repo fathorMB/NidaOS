@@ -49,8 +49,22 @@ func TestLoadPaths(t *testing.T) {
 		t.Errorf("cfg = %+v, err = %v", cfg, err)
 	}
 
-	cfg, err = LoadFrom(env(map[string]string{"NIDA_CORE_JOURNALCTL": "off"}))
-	if err != nil || cfg.Journalctl != nil {
+	cfg, err = LoadFrom(env(map[string]string{
+		"NIDA_CORE_LOG_DIR":       "/var/nida/standard/logs",
+		"NIDA_CORE_LOG_RETENTION": "7d",
+		"NIDA_CORE_LOG_MAX_SIZE":  "512M",
+	}))
+	if err != nil || cfg.LogDir != "/var/nida/standard/logs" || cfg.LogRetention != 7*24*time.Hour || cfg.LogMaxBytes != 512<<20 {
+		t.Errorf("cfg = %+v, err = %v", cfg, err)
+	}
+	for v, want := range map[string]int64{"0": 0, "100": 100, "2K": 2048, "10G": 10 << 30, "1TiB": 1 << 40, "3gb": 3 << 30} {
+		if n, err := parseSize(v); err != nil || n != want {
+			t.Errorf("parseSize(%q) = %d, %v", v, n, err)
+		}
+	}
+
+	cfg, err = LoadFrom(env(map[string]string{"NIDA_CORE_JOURNALCTL": "off", "NIDA_CORE_LOG_DIR": "off"}))
+	if err != nil || cfg.Journalctl != nil || cfg.LogDir != "" {
 		t.Errorf("cfg = %+v, err = %v", cfg, err)
 	}
 }
@@ -77,6 +91,10 @@ func TestLoadBadValues(t *testing.T) {
 		"fast":     {"NIDA_CORE_METRICS_INTERVAL": "10ms"},
 		"interval": {"NIDA_CORE_METRICS_INTERVAL": "often"},
 		"buffer":   {"NIDA_CORE_LOG_BUFFER_LINES": "10"},
+		"keep":     {"NIDA_CORE_LOG_RETENTION": "soon"},
+		"short":    {"NIDA_CORE_LOG_RETENTION": "10m"},
+		"size":     {"NIDA_CORE_LOG_MAX_SIZE": "big"},
+		"unit":     {"NIDA_CORE_LOG_MAX_SIZE": "10X"},
 	} {
 		if _, err := LoadFrom(env(m)); err == nil {
 			t.Errorf("%s: LoadFrom gave no error", name)

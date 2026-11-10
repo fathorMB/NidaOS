@@ -15,6 +15,9 @@ const DefaultBufferLines = 5000
 // memory and sends each line to all the subscribers.
 type Pipeline struct {
 	Hub *stream.Hub[Line]
+	// Sink gets each line after its number, for example Store.Append.
+	// It must be fast: Emit calls it under the lock of the pipeline.
+	Sink func(Line)
 
 	mu   sync.Mutex
 	seq  uint64
@@ -44,6 +47,9 @@ func (p *Pipeline) Emit(l Line) {
 	p.next = (p.next + 1) % len(p.ring)
 	if p.next == 0 {
 		p.full = true
+	}
+	if p.Sink != nil {
+		p.Sink(l)
 	}
 	// Publish under the lock, thus the subscribers get the lines in the
 	// order of their numbers.

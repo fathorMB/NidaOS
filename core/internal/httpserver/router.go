@@ -32,6 +32,8 @@ type Router struct {
 	state   StateSource
 	metrics MetricsSource
 	logs    LogSource
+	// logStore searches the old lines.
+	logStore LogSearcher
 	// heartbeat is the time between two comments in a stream.
 	heartbeat time.Duration
 	started   time.Time
@@ -46,6 +48,8 @@ type Deps struct {
 	State   StateSource
 	Metrics MetricsSource
 	Logs    LogSource
+	// LogStore must be nil, not a nil pointer, when there is no store.
+	LogStore LogSearcher
 }
 
 // NewRouter makes the router with all the paths of the service.
@@ -56,6 +60,7 @@ func NewRouter(d Deps) *Router {
 		state:     d.State,
 		metrics:   d.Metrics,
 		logs:      d.Logs,
+		logStore:  d.LogStore,
 		started:   time.Now(),
 		now:       time.Now,
 		heartbeat: SSEHeartbeat,
@@ -71,6 +76,7 @@ func NewRouter(d Deps) *Router {
 	}
 	r.addMetricsRoutes()
 	r.addLogRoutes()
+	r.addLogSearchRoutes()
 	r.mux.HandleFunc("/", r.noRoute)
 	return r
 }
