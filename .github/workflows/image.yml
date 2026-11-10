@@ -64,6 +64,7 @@ jobs:
             -v /var/lib/containers/storage:/var/lib/containers/storage \
             quay.io/centos-bootc/bootc-image-builder:latest \
             --type anaconda-iso \
+            --rootfs xfs \
             "$IMAGE:$IMAGE_TAG"
           sudo find out -name '*.iso' -exec ls -lh {} \;
 
