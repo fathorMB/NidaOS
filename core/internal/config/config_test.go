@@ -40,6 +40,19 @@ func TestLoadPaths(t *testing.T) {
 		cfg.PodLogDir != "/pods" || cfg.MetricsInterval != time.Second {
 		t.Errorf("cfg = %+v, err = %v", cfg, err)
 	}
+
+	cfg, err = LoadFrom(env(map[string]string{
+		"NIDA_CORE_JOURNALCTL":       "sudo journalctl",
+		"NIDA_CORE_LOG_BUFFER_LINES": "100",
+	}))
+	if err != nil || len(cfg.Journalctl) != 2 || cfg.Journalctl[1] != "journalctl" || cfg.LogBufferLines != 100 {
+		t.Errorf("cfg = %+v, err = %v", cfg, err)
+	}
+
+	cfg, err = LoadFrom(env(map[string]string{"NIDA_CORE_JOURNALCTL": "off"}))
+	if err != nil || cfg.Journalctl != nil {
+		t.Errorf("cfg = %+v, err = %v", cfg, err)
+	}
 }
 
 func TestLoadValues(t *testing.T) {
@@ -63,6 +76,7 @@ func TestLoadBadValues(t *testing.T) {
 		"negative": {"NIDA_CORE_SHUTDOWN_TIMEOUT": "-1s"},
 		"fast":     {"NIDA_CORE_METRICS_INTERVAL": "10ms"},
 		"interval": {"NIDA_CORE_METRICS_INTERVAL": "often"},
+		"buffer":   {"NIDA_CORE_LOG_BUFFER_LINES": "10"},
 	} {
 		if _, err := LoadFrom(env(m)); err == nil {
 			t.Errorf("%s: LoadFrom gave no error", name)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -40,6 +41,13 @@ type Config struct {
 
 	// MetricsInterval is the time between two metric snapshots.
 	MetricsInterval time.Duration
+
+	// Journalctl is the command that reads the systemd journal. It is
+	// empty when the value of the variable is "off".
+	Journalctl []string
+
+	// LogBufferLines is the number of log lines in memory.
+	LogBufferLines int
 }
 
 // Defaults of the configuration.
@@ -52,8 +60,12 @@ const (
 	DefaultMetricsInterval = 2 * time.Second
 	// MinMetricsInterval protects the computer from a sampler that uses
 	// too much processor time.
-	MinMetricsInterval = 250 * time.Millisecond
+	MinMetricsInterval    = 250 * time.Millisecond
+	DefaultLogBufferLines = 5000
 )
+
+// DefaultJournalctl is the default command for the journal.
+var DefaultJournalctl = []string{"journalctl"}
 
 // Load reads the configuration from the environment of the process.
 func Load() (Config, error) {
@@ -71,6 +83,8 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 		PlanFile:        DefaultPlanFile,
 		PodLogDir:       DefaultPodLogDir,
 		MetricsInterval: DefaultMetricsInterval,
+		Journalctl:      DefaultJournalctl,
+		LogBufferLines:  DefaultLogBufferLines,
 	}
 
 	if v := strings.TrimSpace(getenv(Prefix + "ADDR")); v != "" {
@@ -107,6 +121,22 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 			return Config{}, fmt.Errorf("%sMETRICS_INTERVAL: the value %q is not a duration of %s or more", Prefix, v, MinMetricsInterval)
 		}
 		cfg.MetricsInterval = d
+	}
+
+	if v := strings.TrimSpace(getenv(Prefix + "JOURNALCTL")); v != "" {
+		if v == "off" {
+			cfg.Journalctl = nil
+		} else {
+			cfg.Journalctl = strings.Fields(v)
+		}
+	}
+
+	if v := strings.TrimSpace(getenv(Prefix + "LOG_BUFFER_LINES")); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 100 || n > 1_000_000 {
+			return Config{}, fmt.Errorf("%sLOG_BUFFER_LINES: the value %q is not a number from 100 to 1000000", Prefix, v)
+		}
+		cfg.LogBufferLines = n
 	}
 
 	return cfg, nil

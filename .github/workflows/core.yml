@@ -37,5 +37,11 @@ jobs:
         run: go vet ./...
       - name: Test
         run: go test -race ./...
+      - name: Test on the real files of the runner
+        env:
+          # Read the real journal of the runner in the log tests.
+          NIDA_TEST_JOURNAL: "1"
+          NIDA_TEST_JOURNALCTL: sudo journalctl
+        run: go test -race -count=1 -v -run '^TestReal' ./...
       - name: Build
         run: CGO_ENABLED=0 go build -trimpath -o /tmp/nida-core .

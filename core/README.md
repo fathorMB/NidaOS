@@ -32,6 +32,8 @@ go test ./...      # run the tests
 | `NIDA_CORE_PLAN_FILE` | `/var/lib/nidaos/install-plan.txt` | The disk plan of the installer. |
 | `NIDA_CORE_POD_LOG_DIR` | `/var/log/pods` | The pod logs of the kubelet. The metrics read the pod names from it. |
 | `NIDA_CORE_METRICS_INTERVAL` | `2s` | The time between two metric snapshots. The minimum is `250ms`. |
+| `NIDA_CORE_JOURNALCTL` | `journalctl` | The command that reads the systemd journal. `off` stops the journal source. |
+| `NIDA_CORE_LOG_BUFFER_LINES` | `5000` | The number of log lines in memory, for the new clients and the reconnections. |
 
 To run the service on a development computer, use the copy of a NidaOS host in the tests:
 
@@ -52,6 +54,8 @@ NIDA_CORE_ROOT=internal/system/testdata/host go run .
 | `GET /api/v1/tiers` | The two storage tiers (`performance`, `standard`), their state and their usage. |
 | `GET /api/v1/metrics` | The last metric snapshot. |
 | `GET /api/v1/metrics/stream` | The live stream of the metric snapshots (Server-Sent Events). |
+| `GET /api/v1/logs` | The last log lines in memory. |
+| `GET /api/v1/logs/stream` | The live stream of the log lines (Server-Sent Events). |
 
 ## Live metrics
 
@@ -82,3 +86,25 @@ A tier has one of three states:
 Each error has the body `{"code": "...", "message": "..."}`. When the service cannot read the state, the status is 503 and the code is `state_unavailable`.
 
 The package `internal/system` reads only files (`/proc`, `/sys`, `/etc/os-release` and the disk plan). It does not start other programs.
+
+## Live logs
+
+Two sources give the log lines:
+
+- the systemd journal, for the services of the host (with `journalctl --follow --output=json`);
+- the files of the kubelet in `/var/log/pods`, for the containers of the pods.
+
+Each line has a sequence number (`seq`), a time, a source, a level and a message. The source `id` has the form `service/<unit>` or `pod/<namespace>/<pod>/<container>`. The level is `debug`, `info`, `warning` or `error`. For the journal, the level comes from the priority. For the pods, the service finds the level in the text: a JSON field `level`, a field `level=...`, a word at the start of the line, or the prefix of klog.
+
+Both log paths accept these parameters:
+
+| Parameter | Usage |
+| --- | --- |
+| `source` | A prefix of the source `id`, for example `pod/apps` or `service/k3s`. |
+| `level` | The minimum level. `warning` gives the warnings and the errors. |
+| `q` | A text in the message. The comparison ignores the case. |
+| `tail` | The number of old lines first, from 0 to 5000. The default is 200. |
+
+The stream sends the old lines first, then each new line as the event `log`. The `id` of an event is the `seq` of its line. When a browser connects again, it sends the header `Last-Event-ID`. Then the stream sends the lines that the client did not get, if they are still in memory. When a client is too slow and does not get some lines, the stream sends the event `dropped` with the number of lost lines.
+
+The memory keeps only the last lines. The storage for 30 days and the search in the old lines come in task T-05.

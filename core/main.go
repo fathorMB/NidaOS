@@ -24,11 +24,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/fathorMB/NidaOS/core/internal/config"
 	"github.com/fathorMB/NidaOS/core/internal/httpserver"
+	"github.com/fathorMB/NidaOS/core/internal/logs"
 	"github.com/fathorMB/NidaOS/core/internal/metrics"
 	"github.com/fathorMB/NidaOS/core/internal/system"
 	"github.com/fathorMB/NidaOS/core/internal/version"
@@ -91,11 +93,22 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 	sampler := metrics.NewSampler(cfg.Root, cfg.PodLogDir, interval, logger)
 	go sampler.Run(ctx)
 
+	pipeline := logs.NewPipeline(cfg.LogBufferLines)
+	readers := []logs.Reader{&logs.Pods{
+		Dir:    filepath.Join(cfg.Root, filepath.FromSlash(cfg.PodLogDir)),
+		Logger: logger,
+	}}
+	if len(cfg.Journalctl) > 0 {
+		readers = append(readers, &logs.Journal{Command: cfg.Journalctl, Logger: logger})
+	}
+	go pipeline.RunSources(ctx, readers...)
+
 	srv := &http.Server{
 		Handler: httpserver.NewRouter(httpserver.Deps{
 			Logger:  logger,
 			State:   system.NewCollector(cfg.Root, cfg.PlanFile),
 			Metrics: sampler.Hub,
+			Logs:    pipeline,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 		// No WriteTimeout: the live streams keep the connection open.

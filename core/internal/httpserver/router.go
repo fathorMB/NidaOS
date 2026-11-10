@@ -31,6 +31,7 @@ type Router struct {
 	logger  *slog.Logger
 	state   StateSource
 	metrics MetricsSource
+	logs    LogSource
 	// heartbeat is the time between two comments in a stream.
 	heartbeat time.Duration
 	started   time.Time
@@ -44,6 +45,7 @@ type Deps struct {
 	Logger  *slog.Logger
 	State   StateSource
 	Metrics MetricsSource
+	Logs    LogSource
 }
 
 // NewRouter makes the router with all the paths of the service.
@@ -53,6 +55,7 @@ func NewRouter(d Deps) *Router {
 		logger:    d.Logger,
 		state:     d.State,
 		metrics:   d.Metrics,
+		logs:      d.Logs,
 		started:   time.Now(),
 		now:       time.Now,
 		heartbeat: SSEHeartbeat,
@@ -67,6 +70,7 @@ func NewRouter(d Deps) *Router {
 		r.addStateRoutes()
 	}
 	r.addMetricsRoutes()
+	r.addLogRoutes()
 	r.mux.HandleFunc("/", r.noRoute)
 	return r
 }
