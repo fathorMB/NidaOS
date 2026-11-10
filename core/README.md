@@ -162,3 +162,33 @@ Protections:
 - The local socket has the mode `0660` and the group `nida`. When the group does not exist, only `root` can open it.
 
 `nida-core set-password` reads the password from the first line of the standard input. When the service runs, the command sends the password through the local socket. When the service does not run, the command writes the auth file. The minimum length is 12 characters.
+
+## The nida command
+
+`cmd/nida` is the command for the operator, the scripts and the agents. It reads the API of `nida-core`.
+
+```bash
+go build -o nida ./cmd/nida
+```
+
+On the NidaOS computer, `nida` uses the local socket and needs no password. From an other computer, give the address of the service and a token:
+
+```bash
+export NIDA_SERVER=http://nida.local:8470 NIDA_TOKEN=nida_...
+```
+
+| Command | Output |
+| --- | --- |
+| `nida status` | The host, the disks, the storage tiers, the network and the busiest workloads. |
+| `nida metrics` | One line with the last metrics. `--watch` (`-w`) adds one line for each new snapshot. |
+| `nida logs` | The last 50 log lines. `-n` gives an other number. |
+| `nida logs -f` | The last lines, then each new line. |
+| `nida logs --since 2h` | A search in the store of 30 days. `--until` gives the end. |
+| `nida token list` | The tokens. |
+| `nida token create NAME --level read` | Make a token. The output shows the secret one time. |
+| `nida token delete ID` | Delete a token. |
+| `nida version` | The version of `nida` and of `nida-core`. |
+
+The log commands accept `--source` (for example `pod/apps`), `--level` (`warning` gives the warnings and the errors) and `-q` (a text). `--json` before the command writes the JSON of the API: for the live commands, one JSON object on each line.
+
+When a live stream stops, `nida` writes the time of the stop and the time of the last data on the standard error, then it connects again (decision D8). For the logs, it gives the number of the last line to the service, thus it does not lose lines that the service still has in memory.

@@ -44,4 +44,7 @@ jobs:
           NIDA_TEST_JOURNALCTL: sudo journalctl
         run: go test -race -count=1 -v -run '^TestReal' ./...
       - name: Build
-        run: CGO_ENABLED=0 go build -trimpath -o /tmp/nida-core .
+        run: |
+          CGO_ENABLED=0 go build -trimpath -o /tmp/nida-core .
+          CGO_ENABLED=0 go build -trimpath -o /tmp/nida ./cmd/nida
+          /tmp/nida --help | head -3
