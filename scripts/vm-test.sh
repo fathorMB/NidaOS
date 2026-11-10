@@ -57,7 +57,7 @@ QEMU=(
     -device "ide-hd,drive=d1,bus=ide.1,rotation_rate=1"
     -drive "id=d2,if=none,format=qcow2,file=ssd-a.qcow2"
     -device "ide-hd,drive=d2,bus=ide.2,rotation_rate=1"
-    -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22"
+    -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:3389-:3389"
     -device "virtio-net-pci,netdev=n0"
     -serial "file:serial.log"
     -monitor "unix:monitor.sock,server,nowait"
@@ -189,6 +189,73 @@ expect "the standard volume is on the standard disk" \
     echo "## selinux"
     "${SSH[@]}" getenforce || true
 } | tee -a report.txt
+
+echo "==> Examine the desktop and the RDP service"
+rdp_password=$(head -c 18 /dev/urandom | base64 | tr -d '/+=')
+rdp_listens() {
+    local waited=0
+    until "${SSH[@]}" "sudo ss -ltn | grep -q ':3389 '"; do
+        [ "$waited" -ge 180 ] && return 1
+        sleep 10
+        waited=$((waited + 10))
+    done
+}
+rdp_login() {
+    xfreerdp3 /v:127.0.0.1:3389 /u:nida "/p:$rdp_password" /cert:ignore +auth-only > rdp-client.log 2>&1
+}
+expect "the display manager is active" "${SSH[@]}" systemctl is-active --quiet gdm.service
+expect "the RDP setup completed" "${SSH[@]}" systemctl is-active --quiet nida-rdp-setup.service
+expect "the administrator can set the RDP credentials" \
+    "${SSH[@]}" "sudo grdctl --system rdp set-credentials nida $rdp_password && sudo systemctl restart gnome-remote-desktop.service"
+expect "the RDP service listens on port 3389" rdp_listens
+expect "an RDP client can log in to the RDP service" rdp_login
+{
+    echo "## rdp"
+    "${SSH[@]}" sudo grdctl --system status || true
+    "${SSH[@]}" systemctl status --no-pager -n 15 gnome-remote-desktop.service nida-rdp-setup.service || true
+    tail -n 15 rdp-client.log || true
+} | tee -a report.txt
+screenshot screen-desktop.png
+
+# Restart the virtual machine and wait for a new start of the system.
+reboot_vm() {
+    local old new waited=0
+    old=$("${SSH[@]}" cat /proc/sys/kernel/random/boot_id)
+    "${SSH[@]}" sudo systemctl reboot || true
+    while true; do
+        sleep 10
+        waited=$((waited + 10))
+        new=$("${SSH[@]}" cat /proc/sys/kernel/random/boot_id 2>/dev/null || true)
+        [ -n "$new" ] && [ "$new" != "$old" ] && return 0
+        [ "$waited" -ge "$BOOT_TIMEOUT" ] && return 1
+    done
+}
+
+if [ -n "${UPDATE_REF:-}" ]; then
+    echo "==> Update to $UPDATE_REF, then go back"
+    registry=${UPDATE_REF%%/*}
+    update_stage() {
+        printf '[[registry]]\nlocation = "%s"\ninsecure = true\n' "$registry" |
+            "${SSH[@]}" sudo tee /etc/containers/registries.conf.d/90-nida-test.conf > /dev/null &&
+            "${SSH[@]}" sudo bootc switch "$UPDATE_REF"
+    }
+    expect "the system runs the first image version" \
+        "${SSH[@]}" grep -qx "NIDAOS_BUILD=${BUILD_BEFORE:-v1}" /usr/lib/nidaos/release
+    expect "bootc downloads and stages the new image" update_stage
+    expect "the system restarts after the update" reboot_vm
+    expect "the system runs the new image version" \
+        "${SSH[@]}" grep -qx "NIDAOS_BUILD=${BUILD_AFTER:-v2}" /usr/lib/nidaos/release
+    expect "the data on the storage tiers stays after the update" \
+        "${SSH[@]}" "sudo sh -c 'grep -qx performance /var/nida/performance/volumes/*/proof.txt'"
+    expect "bootc prepares the rollback" "${SSH[@]}" sudo bootc rollback
+    expect "the system restarts after the rollback" reboot_vm
+    expect "the system runs the first image version again" \
+        "${SSH[@]}" grep -qx "NIDAOS_BUILD=${BUILD_BEFORE:-v1}" /usr/lib/nidaos/release
+    {
+        echo "## bootc status after the rollback"
+        "${SSH[@]}" sudo bootc status || true
+    } | tee -a report.txt
+fi
 
 "${SSH[@]}" sudo systemctl poweroff || true
 for _ in $(seq 1 30); do

@@ -5,6 +5,17 @@ FROM quay.io/fedora/fedora-bootc:45
 # hyperv-daemons lets a Hyper-V host read the IP address of the virtual machine.
 RUN dnf -y install hyperv-daemons && dnf clean all
 
+# A minimal GNOME desktop for monitoring. The operator connects to it from
+# Windows with Remote Desktop (RDP).
+RUN dnf -y install \
+    gdm \
+    gnome-shell \
+    gnome-remote-desktop \
+    gnome-system-monitor \
+    ptyxis \
+    openssl && \
+    dnf clean all
+
 # k3s is one program file. The version and the checksum are fixed.
 # /usr/local is not part of a bootc image, thus the file goes in /usr/bin.
 ARG K3S_VERSION=v1.37.2+k3s1
@@ -16,7 +27,14 @@ RUN curl -fsSL -o /usr/bin/k3s "https://github.com/k3s-io/k3s/releases/download/
 
 COPY rootfs/ /
 
-RUN systemctl enable k3s.service
+RUN chmod 0755 /usr/libexec/nidaos/nida-rdp-setup && \
+    systemctl enable k3s.service nida-rdp-setup.service gnome-remote-desktop.service && \
+    systemctl set-default graphical.target
+
+# The build identifier. The update test builds the image two times with
+# different identifiers.
+ARG NIDAOS_BUILD=dev
+RUN echo "NIDAOS_BUILD=${NIDAOS_BUILD}" >> /usr/lib/nidaos/release
 
 # sudo refuses a rules file that other users can write.
 RUN chmod 0440 /etc/sudoers.d/10-nida-wheel
