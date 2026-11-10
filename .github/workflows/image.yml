@@ -10,6 +10,10 @@ on:
         description: Push the image to ghcr.io after the test
         type: boolean
         default: false
+      upload_iso:
+        description: Keep the installer ISO as an artifact for 3 days
+        type: boolean
+        default: false
   push:
     branches: [main, "m01-*"]
     paths:
@@ -104,6 +108,15 @@ jobs:
           name: vm-test-results
           path: out/results
           retention-days: 7
+
+      - name: Keep the installer ISO
+        if: github.event_name == 'workflow_dispatch' && inputs.upload_iso
+        uses: actions/upload-artifact@v4
+        with:
+          name: nidaos-installer-iso
+          path: out/**/*.iso
+          retention-days: 3
+          compression-level: 0
 
       - name: Push the image
         if: github.event_name == 'workflow_dispatch' && inputs.publish
