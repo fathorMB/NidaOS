@@ -1,5 +1,22 @@
-# NidaOS image recipe (feasibility proof, milestone M-01).
+# NidaOS image recipe.
 # The base is Fedora in the image-based form (bootc).
+#
+# Build it with the source of the core service as a second context:
+#   podman build --build-context core=core -f image/Containerfile image
+
+# Build nida-core and nida (milestone M-02). The programs are static: they
+# need no library of the image.
+FROM docker.io/library/golang:1.26 AS core-build
+ARG NIDAOS_BUILD=dev
+WORKDIR /src
+COPY --from=core . .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
+        -ldflags "-s -w -X github.com/fathorMB/NidaOS/core/internal/version.Version=${NIDAOS_BUILD}" \
+        -o /out/nida-core . && \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath \
+        -ldflags "-s -w -X github.com/fathorMB/NidaOS/core/internal/version.Version=${NIDAOS_BUILD}" \
+        -o /out/nida ./cmd/nida
+
 FROM quay.io/fedora/fedora-bootc:45
 
 # hyperv-daemons lets a Hyper-V host read the IP address of the virtual machine.
@@ -27,8 +44,11 @@ RUN curl -fsSL -o /usr/bin/k3s "https://github.com/k3s-io/k3s/releases/download/
 
 COPY rootfs/ /
 
+# The core service and the nida command (milestone M-02).
+COPY --from=core-build /out/nida-core /out/nida /usr/bin/
+
 RUN chmod 0755 /usr/libexec/nidaos/nida-rdp-setup && \
-    systemctl enable k3s.service gdm.service nida-rdp-setup.service gnome-remote-desktop.service && \
+    systemctl enable k3s.service gdm.service nida-rdp-setup.service gnome-remote-desktop.service nida-core.service && \
     systemctl set-default graphical.target
 
 # The build identifier. The update test builds the image two times with

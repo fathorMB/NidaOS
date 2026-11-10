@@ -57,7 +57,7 @@ QEMU=(
     -device "ide-hd,drive=d1,bus=ide.1,rotation_rate=1"
     -drive "id=d2,if=none,format=qcow2,file=ssd-a.qcow2"
     -device "ide-hd,drive=d2,bus=ide.2,rotation_rate=1"
-    -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:3389-:3389"
+    -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:3389-:3389,hostfwd=tcp:127.0.0.1:8470-:8470"
     -device "virtio-net-pci,netdev=n0"
     -serial "file:serial.log"
     -monitor "unix:monitor.sock,server,nowait"
@@ -198,6 +198,101 @@ expect "the standard volume is on the standard disk" \
     "${SSH[@]}" getenforce || true
 } | tee -a report.txt
 
+echo "==> Examine the core service and the nida command (M-02)"
+CORE=http://127.0.0.1:8470
+journal_marker="nida-journal-proof-$(head -c 6 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+owner_password=$(head -c 18 /dev/urandom | base64 | tr -d '/+=')
+
+# Run a check again until it passes, for a maximum of $1 seconds.
+retry() {
+    local limit=$1 waited=0
+    shift
+    until "$@"; do
+        [ "$waited" -ge "$limit" ] && return 1
+        sleep 5
+        waited=$((waited + 5))
+    done
+}
+core_version() {
+    "${SSH[@]}" sudo nida version | grep -q "nida-core  $1 "
+}
+core_status() {
+    local out
+    out=$("${SSH[@]}" sudo nida status) || return 1
+    echo "$out" | grep -Eq 'performance +ready' && echo "$out" | grep -Eq 'standard +ready'
+}
+pod_metrics() {
+    "${SSH[@]}" sudo nida --json metrics | grep -q '"name": "nida-storage-proof"'
+}
+log_pod() {
+    "${SSH[@]}" sudo k3s kubectl run nida-log-proof --restart=Never \
+        --image=rancher/mirrored-library-busybox:1.37.0 -- \
+        sh -c 'i=0; while true; do echo "level=warn msg=nida-log-proof-$i"; i=$((i+1)); sleep 2; done' > /dev/null &&
+        "${SSH[@]}" sudo k3s kubectl wait --for=condition=Ready pod/nida-log-proof --timeout=300s > /dev/null
+}
+pod_logs() {
+    "${SSH[@]}" sudo nida logs --source pod/default/nida-log-proof -n 5 |
+        grep -q 'WARN   pod/default/nida-log-proof/nida-log-proof  level=warn msg=nida-log-proof-'
+}
+journal_logs() {
+    "${SSH[@]}" sudo nida logs --source service/nida-vm-test -n 5 | grep -q "ERROR  service/nida-vm-test  $journal_marker"
+}
+store_search() {
+    "${SSH[@]}" sudo nida logs --since 1h -q "$journal_marker" | grep -q "$journal_marker"
+}
+http_code() {
+    curl -s -o /dev/null -w '%{http_code}' "$@"
+}
+tcp_needs_sign_in() {
+    [ "$(http_code "$CORE/api/v1/state")" = 401 ] && [ "$(http_code "$CORE/healthz")" = 200 ]
+}
+token_access() {
+    local token
+    token=$("${SSH[@]}" sudo nida --json token create vm-test --level read |
+        sed -n 's/.*"secret": "\(nida_[a-z0-9]*\)".*/\1/p')
+    [ -n "$token" ] &&
+        [ "$(http_code -H "Authorization: Bearer $token" "$CORE/api/v1/metrics")" = 200 ] &&
+        [ "$(http_code -H "Authorization: Bearer $token" "$CORE/api/v1/tokens")" = 403 ]
+}
+owner_sign_in() {
+    printf '%s\n' "$owner_password" | "${SSH[@]}" sudo nida-core set-password > /dev/null &&
+        [ "$(http_code -X POST -H 'Content-Type: application/json' \
+            -d "{\"password\":\"$owner_password\"}" "$CORE/api/v1/auth/login")" = 200 ]
+}
+no_group_no_socket() {
+    # The user nida is not in the group nida: the socket refuses it.
+    ! "${SSH[@]}" nida status > nida-no-group.log 2>&1 && grep -q 'group nida' nida-no-group.log
+}
+metrics_stream() {
+    # The live stream sends a new snapshot each 2 seconds.
+    "${SSH[@]}" "sudo timeout 7 nida --json metrics --watch" > metrics-stream.log 2>&1 || true
+    [ "$(grep -c '"seq"' metrics-stream.log)" -ge 3 ]
+}
+
+expect "the core service is active" retry 60 "${SSH[@]}" systemctl is-active --quiet nida-core.service
+expect "the core service has the version of the image" retry 30 core_version "${BUILD_BEFORE:-v1}"
+expect "nida status shows the two storage tiers ready" retry 60 core_status
+expect "the metrics show the pod of the storage proof" retry 60 pod_metrics
+expect "the live metric stream sends a snapshot each 2 seconds" metrics_stream
+expect "a pod that writes log lines starts" log_pod
+expect "the logs show the lines of the pod with the source and the level" retry 60 pod_logs
+"${SSH[@]}" "logger -t nida-vm-test -p user.err $journal_marker" || true
+expect "the logs show a line of the journal with the source and the level" retry 30 journal_logs
+expect "the log search finds the line in the store" retry 30 store_search
+expect "through the network, the API needs a sign-in" tcp_needs_sign_in
+expect "a read token gives the metrics but not the tokens" token_access
+expect "the owner signs in with the password from nida-core set-password" owner_sign_in
+expect "a user outside the group nida cannot open the local socket" no_group_no_socket
+{
+    echo "## nida status"
+    "${SSH[@]}" sudo nida status || true
+    echo "## nida logs (pods)"
+    "${SSH[@]}" sudo nida logs --source pod -n 10 || true
+    echo "## nida-core"
+    "${SSH[@]}" systemctl status --no-pager -n 20 nida-core.service || true
+    "${SSH[@]}" sudo ls -l /run/nidaos /var/lib/nidaos /var/lib/nidaos/logs || true
+} | tee -a report.txt
+
 echo "==> Examine the desktop and the RDP service"
 rdp_password=$(head -c 18 /dev/urandom | base64 | tr -d '/+=')
 rdp_listens() {
@@ -256,6 +351,8 @@ if [ -n "${UPDATE_REF:-}" ]; then
     expect "the system restarts after the update" reboot_vm
     expect "the system runs the new image version" \
         "${SSH[@]}" grep -qx "NIDAOS_BUILD=${BUILD_AFTER:-v2}" /usr/lib/nidaos/release
+    expect "the core service runs the new image version" retry 60 core_version "${BUILD_AFTER:-v2}"
+    expect "the log store keeps its lines after the update" store_search
     expect "the data on the storage tiers stays after the update" \
         "${SSH[@]}" "sudo sh -c 'grep -qx performance /var/nida/performance/volumes/*/proof.txt'"
     expect "bootc prepares the rollback" "${SSH[@]}" sudo bootc rollback

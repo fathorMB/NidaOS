@@ -1,0 +1,40 @@
+[Unit]
+Description=NidaOS core service: state, live metrics and live logs
+Documentation=https://github.com/fathorMB/NidaOS/tree/main/core
+Wants=network-online.target
+After=network-online.target systemd-sysusers.service
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/nida-core serve
+Restart=on-failure
+RestartSec=2s
+# The operator can add or change NIDA_CORE_* variables in this file.
+EnvironmentFile=-/etc/sysconfig/nida-core
+# The service listens on the home network (decision D16 and D17: each
+# path except the health needs a sign-in or a token).
+Environment=NIDA_CORE_ADDR=:8470
+
+# /run/nidaos for the local socket, /var/lib/nidaos for the auth file,
+# the log store and the disk plan of the installer.
+RuntimeDirectory=nidaos
+RuntimeDirectoryMode=0755
+StateDirectory=nidaos
+StateDirectoryMode=0755
+
+# The service runs as root: it reads /proc, /sys, the cgroups, the pod
+# logs and the journal of all the units. These rules limit the rest.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/nidaos /run/nidaos
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
