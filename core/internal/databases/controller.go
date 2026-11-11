@@ -396,6 +396,9 @@ func (c *Controller) Sync(ctx context.Context) {
 		if err := c.apply(ctx, d); err != nil {
 			c.opts.Logger.Warn("the controller cannot sync the database", "database", d.Name, "err", err)
 		}
+		if err := c.applyLAN(ctx, d); err != nil {
+			c.opts.Logger.Warn("the controller cannot sync the access from the home network", "database", d.Name, "err", err)
+		}
 		c.syncLinks(ctx, d)
 	}
 }
