@@ -11,7 +11,7 @@ generated: true
 | --- | --- | --- | --- | --- | --- |
 | 1 | M-01 | Feasibility proof of the Fedora bootc base | active | 8/10 (2 blocked) | 80% |
 | 2 | M-02 | Platform core: one service for state, live metrics and live logs | done | 9/9 | 100% |
-| 3 | M-03 | App hosting from GitHub repositories | proposed | 0/9 | 0% |
+| 3 | M-03 | App hosting from GitHub repositories | active | 8/9 | 89% |
 | 4 | M-04 | Managed databases | proposed | 0/10 | 0% |
 | 5 | M-05 | GitHub runners and the deploy flow | proposed | 0/7 | 0% |
 | 6 | M-06 | Web console | proposed | 0/10 | 0% |
@@ -38,7 +38,7 @@ generated: true
 
 ## M-03 — App hosting from GitHub repositories
 
-- `status`: proposed
+- `status`: active
 - `priority`: 3
 - `file`: milestones/M-03.md
 - `outcome`: The operator adds an app from a GitHub repository and NidaOS keeps it in operation. The operator sees the deploys, changes the settings and goes back to an older version.

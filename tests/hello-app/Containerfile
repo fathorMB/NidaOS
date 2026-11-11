@@ -1,0 +1,16 @@
+# A small web app for the VM test of the app hosting (milestone M-03).
+#
+# Build arguments:
+#   VERSION  the text of the page: "nida-hello-<VERSION>".
+#   BROKEN   "yes" gives a version that stops at once. The test uses it to
+#            examine that the version before stays in operation.
+#
+# The app writes the version that started first into its folder /data, and
+# gives it at /first. Thus the test sees that the files of the folder stay
+# after a deploy, a rollback and a move.
+FROM docker.io/library/busybox:1.37
+ARG VERSION=1
+ARG BROKEN=no
+RUN mkdir -p /www && echo "nida-hello-${VERSION}" > /www/index.html && echo ok > /www/healthz && \
+    if [ "$BROKEN" = yes ]; then echo broken > /broken; fi
+CMD ["sh", "-c", "if [ -f /broken ]; then echo 'this version is broken'; exit 1; fi; mkdir -p /data; [ -f /data/first ] || echo \"$NIDA_VERSION\" > /data/first; cp /data/first /www/first; echo \"secret length ${#TOKEN}\"; exec httpd -f -v -p \"${PORT:-8080}\" -h /www"]

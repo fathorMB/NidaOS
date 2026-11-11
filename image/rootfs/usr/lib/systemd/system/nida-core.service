@@ -19,7 +19,8 @@ EnvironmentFile=-/etc/sysconfig/nida-core
 Environment=NIDA_CORE_ADDR=:8470
 
 # /run/nidaos for the local socket, /var/lib/nidaos for the auth file,
-# the log store and the disk plan of the installer.
+# the log store, the apps file, the certificate authority and the disk
+# plan of the installer.
 RuntimeDirectory=nidaos
 RuntimeDirectoryMode=0755
 StateDirectory=nidaos
@@ -37,4 +38,6 @@ ProtectKernelModules=yes
 ProtectControlGroups=yes
 RestrictSUIDSGID=yes
 LockPersonality=yes
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# AF_NETLINK: the mDNS responder reads the network interfaces (decision
+# D19).
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK

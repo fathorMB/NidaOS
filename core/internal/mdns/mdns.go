@@ -141,7 +141,8 @@ func (r *Responder) Run(ctx context.Context) error {
 	if r.Refresh <= 0 {
 		r.Refresh = 5 * time.Second
 	}
-	c, err := net.ListenPacket("udp4", "0.0.0.0:5353")
+	lc := net.ListenConfig{Control: reuse}
+	c, err := lc.ListenPacket(ctx, "udp4", "0.0.0.0:5353")
 	if err != nil {
 		return err
 	}
