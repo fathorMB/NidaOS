@@ -107,3 +107,16 @@ The operator selected a local registry on 2026-11-11. NidaOS runs a small image 
 ## D22 — The app controller uses client-go and a JSON file
 
 The lead selected this on 2026-11-11 for M-03. The app controller of GitStack uses the Kubernetes client `client-go`. NidaOS keeps it, thus the reuse of D4 is possible. NidaOS has one owner and few apps. Thus a JSON file in `/var/lib/nidaos` keeps the apps, the same as the sign-in data, and NidaOS needs no database for its own data.
+
+## D23 — PostgreSQL 17 and 18
+
+The operator selected 17 and 18 on 2026-11-11. A new database uses 18 if the owner does not select a version. NidaOS updates a minor version only when the owner asks for it, and it makes a backup first. A major update (for example 17 to 18) is always a new database that NidaOS makes from a backup of the old database.
+
+## D24 — The managed databases follow GitStack, with the changes for one owner
+
+The lead selected this on 2026-11-11 for M-04, from GitStack `docs/adr/0003-database-gestiti.md`:
+
+- Each database has its own namespace `nida-db-<name>`, a StatefulSet with one copy and a volume claim on the tier that the owner selects. The image is the official `postgres:<version>-alpine`. It runs as the user 70, not as root.
+- The core service uses a superuser only through the local socket in the container. Each connected app gets its own login role, thus the disconnect of one app does not stop the other apps.
+- The database accepts only TLS connections with a password, also from the apps. The network policy of the database accepts only the connected apps. The apps use `sslmode=require`: the certificate is for `nidaos.local`, thus an app cannot examine the name. The switch for the home network opens a port from 15432 to 15531 on the computer. A device of the home network uses `sslmode=verify-full` with the NidaOS authority (D20) and the host `nidaos.local`. Reason: k3s can show a connection from the home network with an address of the pod network, thus a rule "plain text only from the pods" is not safe.
+- The backups are `pg_dump` files in `/var/nida/standard/backups` (the standard tier), mode 0600. NidaOS makes one each day at 03:00 and keeps the last 7. It also keeps the last 5 backups on demand. M-11 adds the encryption and a copy to an other computer.

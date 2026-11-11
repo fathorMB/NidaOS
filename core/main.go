@@ -104,7 +104,6 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 		interval = config.DefaultMetricsInterval
 	}
 	sampler := metrics.NewSampler(cfg.Root, cfg.PodLogDir, interval, logger)
-	go sampler.Run(ctx)
 
 	// The sign-in data. Without it, the service does not start: it must
 	// not give the API without an access check.
@@ -119,8 +118,9 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 
 	// The app hosting (milestone M-03). The controller starts when k3s is
 	// ready.
-	appsDone := make(chan struct{})
+	appsDone, dbsDone := make(chan struct{}), make(chan struct{})
 	var hosting *httpserver.AppHosting
+	var dbHosting *httpserver.DatabaseHosting
 	var certs httpserver.CertSource
 	if cfg.AppsFile != "" {
 		appStore, err := apps.OpenStore(cfg.AppsFile)
@@ -144,6 +144,9 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 				runner.Run(ctx)
 				close(appsDone)
 			}()
+			// The managed databases (milestone M-04) need the app hosting
+			// for the links and the authority for the certificate.
+			dbHosting = startDatabases(ctx, cfg, appStore, runner, opts.TLS, sampler, dbsDone, logger)
 			// The names of the apps on the home network (D19).
 			if cfg.MDNS {
 				responder := &mdns.Responder{Names: func() []string { return appNames(appStore, cfg.AppsDomain) }, Logger: logger}
@@ -157,6 +160,10 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 	} else {
 		close(appsDone)
 	}
+	if dbHosting == nil {
+		close(dbsDone)
+	}
+	go sampler.Run(ctx)
 
 	pipeline := logs.NewPipeline(cfg.LogBufferLines)
 	deps := httpserver.Deps{
@@ -166,6 +173,9 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 		Metrics: sampler.Hub,
 		Logs:    pipeline,
 		Apps:    hosting,
+	}
+	if dbHosting != nil {
+		deps.Databases = dbHosting
 	}
 	if certs != nil {
 		deps.Authority = certs
@@ -213,6 +223,7 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 		<-sourcesDone
 		<-storeDone
 		<-appsDone
+		<-dbsDone
 	}()
 
 	router := httpserver.NewRouter(deps)

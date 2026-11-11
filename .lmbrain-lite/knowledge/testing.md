@@ -61,3 +61,17 @@ The full cycle also examines the app hosting (milestone M-03). The test builds t
 - the app `api` after the update of the system and after the rollback.
 
 The VM test cannot examine the mDNS answer on a different device, because the QEMU network of the runner has no multicast. The operator must examine one Windows computer and one phone in the home network (decision D19).
+
+## The managed databases in the VM
+
+The full cycle also examines the databases (milestone M-04). The test gives the service the image PostgreSQL 17.6 through `/etc/sysconfig/nida-core`, then 17.7, thus it can examine a minor update. It examines:
+
+- a PostgreSQL 17 database on the performance disk, with the server as the user 70;
+- an app without a port (`tests/db-client`, with `psql`) that cannot open the port before the link, and that writes with `DATABASE_URL` after the link;
+- a connection without TLS: the server refuses it;
+- the home network: QEMU forwards the port 15432 to the runner, and `psql` of the runner connects with `sslmode=verify-full`, the name `nidaos.local` and the NidaOS authority;
+- the databases in the live metrics;
+- a backup on demand, the minor update with its backup, and the restore of the backup into a new PostgreSQL 18 database (the major update);
+- the disconnect, the remove, and the backups that stay.
+
+Rule: send SQL and scripts to a pod through stdin (`kubectl exec -i ... -- sh -s <<< "$script"`). Thus ssh does not change the quotes.

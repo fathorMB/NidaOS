@@ -37,6 +37,8 @@ type Router struct {
 	logStore LogSearcher
 	// apps is the app hosting. Nil: no app paths.
 	apps *AppHosting
+	// dbs is the database hosting. Nil: no database paths.
+	dbs *DatabaseHosting
 	// authority gives the certificate of the NidaOS authority.
 	authority CertSource
 	// auth checks the sessions and the tokens. Nil: no access check.
@@ -66,6 +68,9 @@ type Deps struct {
 	// Authority gives the certificate of the NidaOS authority. Nil: no
 	// certificate paths.
 	Authority CertSource
+	// Databases is the database hosting (milestone M-04). Nil: no
+	// database paths.
+	Databases *DatabaseHosting
 }
 
 // NewRouter makes the router with all the paths of the service.
@@ -79,6 +84,7 @@ func NewRouter(d Deps) *Router {
 		logStore:  d.LogStore,
 		auth:      d.Auth,
 		apps:      d.Apps,
+		dbs:       d.Databases,
 		authority: d.Authority,
 		limiter:   auth.NewLimiter(),
 		started:   time.Now(),
@@ -99,6 +105,7 @@ func NewRouter(d Deps) *Router {
 	r.addLogSearchRoutes()
 	r.addAuthRoutes()
 	r.addAppRoutes()
+	r.addDatabaseRoutes()
 	r.mux.HandleFunc("/", r.noRoute)
 	return r
 }

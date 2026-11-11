@@ -82,8 +82,6 @@ type BuildOptions struct {
 	Copies int32
 	// ProgressSeconds is the maximum time of a rollout.
 	ProgressSeconds int32
-	// Secrets is true when the Secret of the app exists.
-	Secrets bool
 	// RestartedAt keeps the restart annotation of the current Deployment.
 	RestartedAt string
 	// Folders are the folders of the app, with the current tier.
@@ -123,10 +121,10 @@ func BuildDeployment(app string, v Version, o BuildOptions) *appsv1.Deployment {
 		},
 		Resources: corev1.ResourceRequirements{Limits: resourceList(cfg.Limits)},
 	}
-	if o.Secrets {
-		c.EnvFrom = []corev1.EnvFromSource{{SecretRef: &corev1.SecretEnvSource{
-			LocalObjectReference: corev1.LocalObjectReference{Name: secretName}}}}
-	}
+	// The Secret is optional: the secrets of the owner and the links of
+	// the databases (M-04) can come and go without a new version.
+	c.EnvFrom = []corev1.EnvFromSource{{SecretRef: &corev1.SecretEnvSource{
+		LocalObjectReference: corev1.LocalObjectReference{Name: secretName}, Optional: ptr(true)}}}
 	minReady := int32(0)
 	if cfg.Port != nil {
 		c.Ports = []corev1.ContainerPort{{Name: "http", ContainerPort: int32(*cfg.Port), Protocol: corev1.ProtocolTCP}}

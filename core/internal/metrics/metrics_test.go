@@ -195,3 +195,21 @@ func TestReadError(t *testing.T) {
 		}
 	}
 }
+
+func TestSnapshotHasTheDatabases(t *testing.T) {
+	h := newHost(t)
+	clock := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
+	s := newTestSampler(h, &clock)
+	s.Databases = func() []Database {
+		return []Database{{Name: "shop-db", State: "ready", SizeBytes: 4096, Connections: 2, TransactionsPerSecond: 25}}
+	}
+	h.set(1000, 800, 0, 0, 0, 1000, 500, 1_000_000)
+	s.Sample()
+	clock = clock.Add(2 * time.Second)
+	h.set(2000, 1050, 0, 0, 0, 2000, 1000, 2_000_000)
+	s.Sample()
+	snap, _ := s.Hub.Last()
+	if len(snap.Databases) != 1 || snap.Databases[0].Connections != 2 {
+		t.Errorf("databases %+v", snap.Databases)
+	}
+}

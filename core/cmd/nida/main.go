@@ -11,6 +11,7 @@
 //	nida token list | create NAME [--level read|admin] | delete ID
 //	nida app list | show | add | deploy | rollback | set | secret | move | restart | remove
 //	nida ca [--fingerprint]
+//	nida db list | show | add | link | unlink | lan | connection | backup | backups | update | remove
 //	nida version
 //
 // Each command accepts --json: the output is the JSON of the API, for
@@ -55,6 +56,13 @@ Commands:
   app move NAME FOLDER T  move a folder to the tier T (performance or standard)
   app remove NAME --yes   remove an app and the files of its folders
   ca [--fingerprint]      the certificate of the NidaOS authority, to install on a device
+  db list                 the databases; "nida db" shows all the database commands
+  db add NAME             add a PostgreSQL database (--version, --tier, --size, --restore, --wait)
+  db link NAME APP        connect an app (--ro for read only)
+  db lan NAME on|off      the access from the home network, with TLS
+  db backup NAME          make a backup now (--wait); db backups NAME lists them
+  db update NAME          the newest minor version, with a backup first (--wait)
+  db remove NAME --yes    remove a database and its data (the backups stay)
   version                 the version of nida and of nida-core
 
 Global options:
@@ -133,6 +141,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		err = a.apps(ctx, cmdArgs)
 	case "ca":
 		err = a.ca(ctx, cmdArgs)
+	case "db", "dbs", "database", "databases":
+		err = a.databases(ctx, cmdArgs)
 	case "version":
 		err = a.version(ctx, cmdArgs)
 	case "help":

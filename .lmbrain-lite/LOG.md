@@ -106,3 +106,23 @@ One line per action. Format: `timestamp | by:<who> | <target or -> | <kind> | <m
 2026-11-11T11:21 | by:lead | M-03 | code-snapshot | Code snapshot: 8505 production lines, 3652 test lines, 106 tests, 86 source files.
 2026-11-11T11:21 | by:lead | M-03 | code-note | Wrote the code notes: 5 steps.
 2026-11-11T11:21 | by:lead | M-03 | code-note | Wrote the code notes: 5 steps.
+2026-11-11T11:22 | by:lead | M-03 | note | Pull request 2 asks to merge m03-hosting into main.
+2026-11-11T11:51 | by:operator | M-04 | status | proposed -> approved
+2026-11-11T11:59 | by:lead | M-04 | status | approved -> active: The operator asked to start M-04 and selected PostgreSQL 17 and 18 (decision D23).
+2026-11-11T11:59 | by:lead | M-04 | decision | The operator selected PostgreSQL 17 and 18 (decision D23); the lead recorded the database design from GitStack in decision D24.
+2026-11-11T12:02 | by:lead | M-04/T-01 | task | done: core/internal/databases has the manifests, the psql runner and the roles from GitStack. The tests examine the security context, pg_hba.conf, the network policies and the order of the disconnect. — Carve the database controller out of GitStack core
+2026-11-11T12:04 | by:lead | M-04/T-02 | task | done: The controller makes a database on the storage class of its tier and makes the roles with a new password of 32 hexadecimal characters. The store keeps the passwords with the mode 0600. — Create a PostgreSQL database on a storage tier with a password that NidaOS makes
+2026-11-11T12:07 | by:lead | M-04/T-03 | task | done: A link makes a login role for the app and gives DATABASE_URL and the PG variables as linked secrets. A name that the app uses already blocks the link. The disconnect closes the sessions first. — Connect a database to an app and give the connection text as a variable
+2026-11-11T12:08 | by:lead | M-04/T-04 | task | done: Only the namespaces with the link label get to a database. The switch for the home network opens one port from 15432 to 15531 with TLS. T-10 examines the access in the VM. — Permit only the connected apps to get to a database, with a switch for the home network
+2026-11-11T12:11 | by:lead | M-04/T-05 | task | done: NidaOS makes one daily backup after 03:00 and keeps 7, and keeps 5 backups on demand. The backups are pg_dump files with the mode 0600. A failed backup leaves no file. — Make the daily backups, keep them for a set time, and make a backup on demand
+2026-11-11T12:12 | by:lead | M-04/T-06 | task | done: A restore makes a new database, runs pg_restore with the new owner role and gives the read privileges again. The version must be the version of the backup or newer. — Restore a backup into a new database
+2026-11-11T12:13 | by:lead | M-04/T-07 | task | done: A minor update makes a backup first and stops when the backup fails. When the server does not start with the new image, the old image comes back. — Add the small version update with a backup before it
+2026-11-11T12:14 | by:lead | M-04/T-08 | task | done: The controller reads the size, the connections and the transactions each 10 seconds. The metric snapshots and the stream have the databases with the rate of the transactions. — Give the size, the connections and the queries of a database to the live metrics
+2026-11-11T12:19 | by:lead | M-04/T-09 | task | done: The API and nida db give all the database operations. The connection with the owner password needs the admin level. docs/api.md has section 4.10 and all the new error codes. — Add the database commands to the API and to the nida command
+2026-11-11T12:55 | by:lead | M-04/T-10 | finding | Run 43011072857: a connection from the home network arrives at PostgreSQL from 10.42.0.1, an address of the pod network, and the network policy of k3s rejects the packets of an app that is not connected.
+2026-11-11T13:31 | by:lead | M-04/T-10 | task | done: Run 43015707299 passed all the checks. The VM test examines the full life of a database, from the creation to the remove. It includes the home network port with verify-full, the minor update and the restore into PostgreSQL 18. — Test the full life of a database in the virtual machine
+2026-11-11T13:31 | by:lead | - | code-snapshot | Rebuilt the code history: 0 counted again, 3 mapped again, 1 skipped.
+2026-11-11T13:31 | by:lead | M-04 | commit | c889459 passes the full VM test of M-04; the M-04 work is on the branch m04-databases.
+2026-11-11T13:31 | by:lead | M-04 | status | active -> done: The ten tasks are complete, and run 43015707299 passed all the checks of the VM test.
+2026-11-11T13:31 | by:lead | M-04 | code-snapshot | Code snapshot: 11535 production lines, 4644 test lines, 135 tests, 111 source files.
+2026-11-11T13:31 | by:lead | M-04 | code-note | Wrote the code notes: 5 steps.

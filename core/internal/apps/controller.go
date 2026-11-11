@@ -296,7 +296,6 @@ func (c *Controller) apply(ctx context.Context, app App, v Version) error {
 	opts := BuildOptions{
 		Copies:          int32(app.Copies),
 		ProgressSeconds: int32(c.cfg.ProgressTimeout / time.Second),
-		Secrets:         len(secrets) > 0,
 		Folders:         app.Folders,
 	}
 	// Get, build and update at each attempt: the deployment controller of
@@ -727,6 +726,23 @@ func (c *Controller) Remove(ctx context.Context, app string) error {
 		return fmt.Errorf("the namespace %s is not of this app", cur.Name)
 	}
 	err = nss.Delete(ctx, cur.Name, metav1.DeleteOptions{})
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	return err
+}
+
+// ApplySecrets writes the Secret of the app again and starts the copies
+// again, thus they get the new values. An app without a Deployment gets
+// the values at its first deploy.
+func (c *Controller) ApplySecrets(ctx context.Context, app string) error {
+	if _, err := c.kube.CoreV1().Namespaces().Get(ctx, Namespace(app), metav1.GetOptions{}); apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err := c.ensureSecret(ctx, app, c.src.Secrets(app)); err != nil {
+		return err
+	}
+	err := c.Restart(ctx, app)
 	if apierrors.IsNotFound(err) {
 		return nil
 	}

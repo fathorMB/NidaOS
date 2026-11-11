@@ -245,3 +245,39 @@ func TestRollback(t *testing.T) {
 		t.Errorf("active %d, version 2 %s", a.Active, v2.State)
 	}
 }
+
+func TestLinkedSecrets(t *testing.T) {
+	s, p := newStore(t)
+	_, _ = s.Create(App{Name: "shop", Config: Config{Variables: map[string]string{"MODE": "x"}}})
+	_ = s.SetSecret("shop", "TOKEN", "t")
+	if err := s.SetLinked("shop", "database shop-db", map[string]string{"MODE": "y"}); !errors.Is(err, ErrNameInUse) {
+		t.Errorf("a linked name over a variable: %v", err)
+	}
+	if err := s.SetLinked("shop", "database shop-db", map[string]string{"DATABASE_URL": "postgresql://x"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetLinked("shop", "database other", map[string]string{"DATABASE_URL": "postgresql://y"}); !errors.Is(err, ErrNameInUse) {
+		t.Errorf("two sources with the same name: %v", err)
+	}
+	if err := s.SetSecret("shop", "DATABASE_URL", "z"); !IsFieldError(err) {
+		t.Errorf("a secret with a linked name: %v", err)
+	}
+	cfg := Config{Variables: map[string]string{"DATABASE_URL": "z"}}
+	if _, _, err := s.Update("shop", Change{Config: &cfg}); !IsFieldError(err) {
+		t.Errorf("a variable with a linked name: %v", err)
+	}
+	if got := s.Secrets("shop"); got["DATABASE_URL"] != "postgresql://x" || got["TOKEN"] != "t" {
+		t.Errorf("secrets %v", got)
+	}
+	if fmt.Sprint(s.SecretNames("shop")) != "[TOKEN]" || s.LinkedNames("shop")["DATABASE_URL"] != "database shop-db" {
+		t.Errorf("names %v %v", s.SecretNames("shop"), s.LinkedNames("shop"))
+	}
+	s2, _ := OpenStore(p)
+	if s2.Secrets("shop")["DATABASE_URL"] != "postgresql://x" {
+		t.Error("the linked secret is not in the file")
+	}
+	_ = s.RemoveLinked("shop", "database shop-db")
+	if _, ok := s.Secrets("shop")["DATABASE_URL"]; ok {
+		t.Error("the linked secret is still there")
+	}
+}

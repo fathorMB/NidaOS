@@ -76,6 +76,9 @@ func accessOf(req *http.Request) access {
 		return accessAny
 	case p == "/api/v1/tokens" || strings.HasPrefix(p, "/api/v1/tokens/") || p == "/api/v1/auth/password":
 		return accessAdmin
+	case strings.HasPrefix(p, "/api/v1/databases/") && strings.HasSuffix(p, "/connection"):
+		// The connection has the password of the owner role.
+		return accessAdmin
 	case req.Method == http.MethodGet || req.Method == http.MethodHead:
 		return accessRead
 	}
