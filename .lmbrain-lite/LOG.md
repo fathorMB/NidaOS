@@ -74,3 +74,5 @@ One line per action. Format: `timestamp | by:<who> | <target or -> | <kind> | <m
 2026-11-11T00:27 | by:lead | M-07/T-10 | task | added 'Add the owner user to the group nida and set the owner password of nida-core at the installation'
 2026-11-11T00:27 | by:lead | M-02/T-08 | finding | The installer makes the user nida only in the group wheel. Thus the user needs sudo for the nida command until M-07 adds the user to the group nida.
 2026-11-11T01:38 | by:lead | M-02/T-08 | finding | Correction: the user nida has its own group nida from the installer, thus it opens the socket without sudo. M-07/T-10 is still necessary for an owner with another name.
+2026-11-11T02:29 | by:lead | M-02/T-08 | task | done: Run 42935759563 passed all 38 checks. The image starts nida-core, and the VM test examines the metrics and the logs of real pods, the journal, the search, the access rules and the update. — Add the core service to the image and test it in the virtual machine
+2026-11-11T02:29 | by:lead | M-02/T-08 | test | Runs 1 to 3 failed because of errors in the test script: ssh lost the quotes of two commands, and k3s had no service account yet. Run 4 passed.

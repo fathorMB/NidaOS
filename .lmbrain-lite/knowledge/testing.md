@@ -1,6 +1,6 @@
 ---
 title: How to build and test NidaOS
-updated: 2026-11-10
+updated: 2026-11-11
 ---
 
 # How to build and test NidaOS
@@ -31,3 +31,14 @@ The script prints one `PASS` or `FAIL` line for each check. The report of the fe
 ## The Hyper-V virtual machine for manual checks
 
 `vm/new-vm.ps1` makes a virtual machine with three disks and a seed volume with the SSH key of the operator. Nobody ran the script. It needs administrator rights and the installer ISO on the Windows computer.
+
+## Rules for scripts/vm-test.sh
+
+- `ssh` joins its arguments into one command line, and the remote shell reads that line again. Thus quotes inside the arguments are lost. Give a remote command with quotes as one string: `"${SSH[@]}" "stat -c '%U:%G %a' /run/x"`. Send a pod or a script with a `sh -c` part as a manifest on stdin (`kubectl apply -f - < tests/x.yaml`).
+- k3s can be ready before it makes the service account `default`. Wait for it before a pod of the namespace `default`.
+- Give `curl` a time limit (`--max-time`): a port that drops the packets keeps it open with no limit.
+- The log of a running step is not visible on GitHub. When the step "Install and test in a virtual machine" takes more than 15 minutes, cancel the run and read the log.
+
+## The core service in the VM
+
+The full cycle also examines `nida-core` (milestone M-02): the version, the tiers, the metrics and the logs of real pods, the journal, the log search, the access rules and the update. The port 8470 of the VM is forwarded to `127.0.0.1:8470` of the runner.

@@ -10,7 +10,7 @@ generated: true
 | Priority | ID | Milestone | Status | Tasks | Progress |
 | --- | --- | --- | --- | --- | --- |
 | 1 | M-01 | Feasibility proof of the Fedora bootc base | active | 8/10 (2 blocked) | 80% |
-| 2 | M-02 | Platform core: one service for state, live metrics and live logs | active | 7/9 | 78% |
+| 2 | M-02 | Platform core: one service for state, live metrics and live logs | active | 8/9 | 89% |
 | 3 | M-03 | App hosting from GitHub repositories | proposed | 0/9 | 0% |
 | 4 | M-04 | Managed databases | proposed | 0/10 | 0% |
 | 5 | M-05 | GitHub runners and the deploy flow | proposed | 0/7 | 0% |
