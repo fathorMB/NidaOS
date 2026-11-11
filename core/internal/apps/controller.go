@@ -283,6 +283,9 @@ func (c *Controller) apply(ctx context.Context, app App, v Version) error {
 	if err := c.ensureService(ctx, app.Name, v.Config); err != nil {
 		return fmt.Errorf("service: %w", err)
 	}
+	if err := c.ensureAliases(ctx, app.Name, c.src.Apps()); err != nil {
+		return fmt.Errorf("internal names: %w", err)
+	}
 	if err := c.ensureRoute(ctx, app.Name, v.Config); err != nil {
 		// Without Traefik (or before Traefik is ready) the route is not
 		// there, but the version can start. The next deploy or sync tries
@@ -634,11 +637,17 @@ func trim(s string) string {
 func (c *Controller) Sync(ctx context.Context) {
 	now := time.Now()
 	seen := map[string]bool{}
-	for _, app := range c.src.Apps() {
+	all := c.src.Apps()
+	for _, app := range all {
 		seen[app.Name] = true
 		st := Status{Copies: app.Copies, Observed: now}
 		d, err := c.kube.AppsV1().Deployments(Namespace(app.Name)).Get(ctx, WorkloadName, metav1.GetOptions{})
 		if err == nil {
+			// A new or removed app changes the internal names of the
+			// other apps.
+			if err := c.ensureAliases(ctx, app.Name, all); err != nil {
+				c.cfg.Logger.Warn("the controller cannot update the internal names", "app", app.Name, "err", err)
+			}
 			st.Ready = int(d.Status.ReadyReplicas)
 			if n, err := strconv.Atoi(d.Spec.Template.Annotations[AnnotationVersion]); err == nil && st.Ready > 0 {
 				st.Version = n
