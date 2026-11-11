@@ -121,3 +121,8 @@ One line per action. Format: `timestamp | by:<who> | <target or -> | <kind> | <m
 2026-11-11T12:19 | by:lead | M-04/T-09 | task | done: The API and nida db give all the database operations. The connection with the owner password needs the admin level. docs/api.md has section 4.10 and all the new error codes. — Add the database commands to the API and to the nida command
 2026-11-11T12:55 | by:lead | M-04/T-10 | finding | Run 43011072857: a connection from the home network arrives at PostgreSQL from 10.42.0.1, an address of the pod network, and the network policy of k3s rejects the packets of an app that is not connected.
 2026-11-11T13:31 | by:lead | M-04/T-10 | task | done: Run 43015707299 passed all the checks. The VM test examines the full life of a database, from the creation to the remove. It includes the home network port with verify-full, the minor update and the restore into PostgreSQL 18. — Test the full life of a database in the virtual machine
+2026-11-11T13:31 | by:lead | - | code-snapshot | Rebuilt the code history: 0 counted again, 3 mapped again, 1 skipped.
+2026-11-11T13:31 | by:lead | M-04 | commit | c889459 passes the full VM test of M-04; the M-04 work is on the branch m04-databases.
+2026-11-11T13:31 | by:lead | M-04 | status | active -> done: The ten tasks are complete, and run 43015707299 passed all the checks of the VM test.
+2026-11-11T13:31 | by:lead | M-04 | code-snapshot | Code snapshot: 11535 production lines, 4644 test lines, 135 tests, 111 source files.
+2026-11-11T13:31 | by:lead | M-04 | code-note | Wrote the code notes: 5 steps.
