@@ -106,3 +106,7 @@ One line per action. Format: `timestamp | by:<who> | <target or -> | <kind> | <m
 2026-11-11T11:21 | by:lead | M-03 | code-snapshot | Code snapshot: 8505 production lines, 3652 test lines, 106 tests, 86 source files.
 2026-11-11T11:21 | by:lead | M-03 | code-note | Wrote the code notes: 5 steps.
 2026-11-11T11:21 | by:lead | M-03 | code-note | Wrote the code notes: 5 steps.
+2026-11-11T11:22 | by:lead | M-03 | note | Pull request 2 asks to merge m03-hosting into main.
+2026-11-11T11:51 | by:operator | M-04 | status | proposed -> approved
+2026-11-11T11:59 | by:lead | M-04 | status | approved -> active: The operator asked to start M-04 and selected PostgreSQL 17 and 18 (decision D23).
+2026-11-11T11:59 | by:lead | M-04 | decision | The operator selected PostgreSQL 17 and 18 (decision D23); the lead recorded the database design from GitStack in decision D24.
