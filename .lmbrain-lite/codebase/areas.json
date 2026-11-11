@@ -72,6 +72,17 @@
       ]
     },
     {
+      "id": "runners",
+      "name": "GitHub runners",
+      "description": "The GitHub App client, the runner pods for each job, the job endpoint and the deploy flow (M-05).",
+      "patterns": [
+        "core/internal/runners/**",
+        "core/internal/github/**",
+        "core/runners.go",
+        "scripts/github-test.sh"
+      ]
+    },
+    {
       "id": "addresses",
       "name": "App addresses",
       "description": "The certificate authority of NidaOS and the mDNS responder (decisions D19 and D20).",
