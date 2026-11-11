@@ -15,7 +15,7 @@ on:
         type: boolean
         default: false
   push:
-    branches: [main, "m01-*", "m02-*", "m03-*", "m04-*"]
+    branches: [main, "m01-*", "m02-*", "m03-*", "m04-*", "m05-*"]
     paths:
       - core/**
       - image/**
@@ -50,8 +50,24 @@ jobs:
 
       - name: Install the test tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf xorriso socat freerdp3-x11
+          # The Azure mirror of Ubuntu is sometimes not available from the
+          # runner (run 43051313619). The step uses the main archive.
+          sudo sed -i -e 's#mirror+file:/etc/apt/apt-mirrors.txt#http://archive.ubuntu.com/ubuntu/#' \
+            -e 's#http://azure.archive.ubuntu.com#http://archive.ubuntu.com#' \
+            /etc/apt/sources.list.d/*.sources /etc/apt/sources.list 2>/dev/null || true
+          grep -rh '^URIs\|^deb ' /etc/apt/sources.list.d/ /etc/apt/sources.list 2>/dev/null | sort -u || true
+          # The DNS server of the runner sometimes does not resolve the
+          # names of ubuntu.com (run 43061287395). Then use public servers.
+          if ! getent hosts archive.ubuntu.com > /dev/null; then
+            echo "The DNS server of the runner does not resolve archive.ubuntu.com: use 1.1.1.1 and 8.8.8.8"
+            iface=$(ip route show default | awk '{print $5; exit}')
+            sudo resolvectl dns "$iface" 1.1.1.1 8.8.8.8
+            sudo resolvectl flush-caches
+            getent hosts archive.ubuntu.com
+          fi
+          apt() { sudo timeout 900 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 "$@"; }
+          apt update
+          apt install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf xorriso socat freerdp3-x11
 
       - name: Build the image
         run: sudo podman build -t "$IMAGE:$IMAGE_TAG" --build-arg NIDAOS_BUILD=v1 --build-context core=core -f image/Containerfile image
@@ -88,10 +104,15 @@ jobs:
       - name: Install and test in a virtual machine
         env:
           UPDATE_REF: 10.0.2.2:5000/nidaos:v2
+          # The GitHub App and the private repository of the M-05 test
+          # (knowledge/testing.md). Without them, the test skips the flow.
+          NIDA_TEST_GITHUB_APP_ID: ${{ secrets.NIDA_TEST_GITHUB_APP_ID }}
+          NIDA_TEST_GITHUB_APP_KEY: ${{ secrets.NIDA_TEST_GITHUB_APP_KEY }}
+          NIDA_TEST_GITHUB_REPO: ${{ vars.NIDA_TEST_GITHUB_REPO || secrets.NIDA_TEST_GITHUB_REPO }}
         run: |
           ls -l /dev/kvm
           iso=$(sudo find out -name '*.iso' | head -n1)
-          sudo --preserve-env=UPDATE_REF bash scripts/vm-test.sh "$iso" out/vm
+          sudo --preserve-env=UPDATE_REF,GITHUB_RUN_ID,NIDA_TEST_GITHUB_APP_ID,NIDA_TEST_GITHUB_APP_KEY,NIDA_TEST_GITHUB_REPO bash scripts/vm-test.sh "$iso" out/vm
 
       - name: Collect the test results
         if: always()

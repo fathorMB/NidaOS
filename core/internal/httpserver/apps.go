@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/fathorMB/NidaOS/core/internal/apps"
+	"github.com/fathorMB/NidaOS/core/internal/runners"
 )
 
 // AppHosting gives the app API its parts (milestone M-03).
@@ -289,6 +290,11 @@ func (r *Router) appsRemove(w http.ResponseWriter, req *http.Request) {
 	if err := c.Remove(ctx, name); err != nil {
 		r.writeAppError(w, err)
 		return
+	}
+	if r.runners != nil {
+		if err := r.runners.Service.Disconnect(ctx, name); err != nil && !errors.Is(err, runners.ErrNotConnected) {
+			r.logger.Warn("the disconnect of the repository failed", "app", name, "err", err)
+		}
 	}
 	if err := r.apps.Store.Remove(name); err != nil {
 		r.writeAppError(w, err)

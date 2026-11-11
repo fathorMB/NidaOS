@@ -39,6 +39,8 @@ type Router struct {
 	apps *AppHosting
 	// dbs is the database hosting. Nil: no database paths.
 	dbs *DatabaseHosting
+	// runners is the GitHub runner part. Nil: no runner paths.
+	runners *RunnerHosting
 	// authority gives the certificate of the NidaOS authority.
 	authority CertSource
 	// auth checks the sessions and the tokens. Nil: no access check.
@@ -71,6 +73,9 @@ type Deps struct {
 	// Databases is the database hosting (milestone M-04). Nil: no
 	// database paths.
 	Databases *DatabaseHosting
+	// Runners is the GitHub runner part (milestone M-05). Nil: no runner
+	// paths.
+	Runners *RunnerHosting
 }
 
 // NewRouter makes the router with all the paths of the service.
@@ -85,6 +90,7 @@ func NewRouter(d Deps) *Router {
 		auth:      d.Auth,
 		apps:      d.Apps,
 		dbs:       d.Databases,
+		runners:   d.Runners,
 		authority: d.Authority,
 		limiter:   auth.NewLimiter(),
 		started:   time.Now(),
@@ -106,6 +112,7 @@ func NewRouter(d Deps) *Router {
 	r.addAuthRoutes()
 	r.addAppRoutes()
 	r.addDatabaseRoutes()
+	r.addRunnerRoutes()
 	r.mux.HandleFunc("/", r.noRoute)
 	return r
 }

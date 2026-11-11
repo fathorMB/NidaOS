@@ -499,6 +499,14 @@ restored_on_18() {
         [ "$(server_sql shop-18 "SELECT tableowner FROM pg_tables WHERE tablename = 'proof'")" = shop_18_owner ] &&
         server_sql shop-18 'SHOW server_version' | grep -q '^18\.'
 }
+# update_offered: after the restart of the service, the database
+# controller must connect to k3s again before it accepts the update.
+update_offered() {
+    "${SSH[@]}" "sudo nida --json db show shop-db" | grep -q '"update_available": *"[^"]'
+}
+db_updated() {
+    nida_db "update shop-db --wait" > db-update.log 2>&1
+}
 minor_updated() {
     [ "$(server_sql shop-db 'SHOW server_version')" = 17.7 ] && [ "$(server_sql shop-db 'SELECT x FROM proof')" = 42 ]
 }
@@ -536,7 +544,8 @@ expect "the port of the home network refuses a connection without TLS" lan_plain
 expect "the live metrics show the database" retry 60 db_metrics
 expect "a backup on demand passes" nida_db "backup shop-db --wait"
 expect "the service gets the image PostgreSQL 17.7" set_db_images "17=docker.io/library/postgres:17.7-alpine,18=docker.io/library/postgres:18.1-alpine"
-expect "the minor update to 17.7 passes with a backup before it" nida_db "update shop-db --wait"
+expect "the database controller offers the update to 17.7" retry 120 update_offered
+expect "the minor update to 17.7 passes with a backup before it" db_updated
 expect "the server runs 17.7 and keeps the data" retry 30 minor_updated
 expect "the backup restores into a new PostgreSQL 18 database" restored_on_18
 expect "the disconnect removes the connection from the app" unlinked
@@ -549,12 +558,160 @@ expect "the disconnect removes the connection from the app" unlinked
     "${SSH[@]}" sudo nida db backups shop-db || true
     echo "## database objects"
     "${SSH[@]}" sudo k3s kubectl get all,pvc,networkpolicy -n nida-db-shop-db || true
-    cat db-restore.log db-plain.log db-not-linked.log db-lan-plain.log 2>/dev/null || true
+    cat db-update.log db-restore.log db-plain.log db-not-linked.log db-lan-plain.log 2>/dev/null || true
 } | tee -a report.txt
 expect "the remove of the databases deletes their namespaces" db_removed
 expect "the backups stay after the remove" backups_stay
 "${SSH[@]}" "sudo rm -f $CORE_ENV && sudo systemctl restart nida-core.service" || true
 nida_app "remove dbclient --yes" > /dev/null || true
+
+echo "==> Examine the GitHub runners and the deploy flow (M-05)"
+# The checks of the job endpoint need no GitHub. The flow from a push to an
+# app in operation needs the GitHub App and the private repository of the
+# test (scripts/github-test.sh). Each run uses its own app name and branch,
+# thus two runs at the same time do not see the jobs of the other run.
+source "$REPO/scripts/github-test.sh"
+job_endpoint_code() {
+    "${SSH[@]}" "curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://10.42.0.1:8471$1"
+}
+job_endpoint_refuses() {
+    [ "$(job_endpoint_code /v2/)" = 401 ] && [ "$(job_endpoint_code /api/v1/apps)" = 401 ]
+}
+job_endpoint_gives_nida() {
+    "${SSH[@]}" "curl -sf --max-time 10 http://10.42.0.1:8471/tools/nida | head -c 4 | od -An -c" | grep -q 'E   L   F'
+}
+runner_policy() {
+    "${SSH[@]}" "sudo k3s kubectl get networkpolicy -n nida-runners runner-isolation" > /dev/null 2>&1
+}
+expect "the job endpoint refuses a request without a job token" retry 120 job_endpoint_refuses
+expect "the job endpoint gives the nida command to the runner pods" job_endpoint_gives_nida
+expect "the runner namespace has its network policy" retry 60 runner_policy
+
+if gh_configured; then
+    RUN=${GITHUB_RUN_ID:-$$}
+    CI_APP=ci-${RUN: -8}
+    CI_BRANCH=nidaos-test-$RUN
+    nida_runner() {
+        "${SSH[@]}" "sudo timeout 120 nida $*"
+    }
+    github_imported() {
+        "${SSH[@]}" "umask 077 && cat > github-app.pem" < "$(gh_key_file)" &&
+            nida_runner "github import --app-id $NIDA_TEST_GITHUB_APP_ID --key-file github-app.pem" > github-import.log 2>&1
+        local rc=$?
+        "${SSH[@]}" "rm -f github-app.pem"
+        return $rc
+    }
+    test_branch() {
+        gh_clean_old || true
+        gh_new_branch "$CI_BRANCH" &&
+            gh_put_file "$CI_BRANCH" Containerfile "$REPO/tests/hello-app/Containerfile" "Add the app of the NidaOS test"
+    }
+    ci_app_added() {
+        nida_app "add $CI_APP --port 8080 --health /healthz" > /dev/null
+    }
+    connected() {
+        nida_runner "app connect $CI_APP $NIDA_TEST_GITHUB_REPO --branch $CI_BRANCH" > github-connect.log 2>&1 &&
+            grep -q '/pull/' github-connect.log
+    }
+    pr_number() {
+        gh_api GET "/pulls?state=open&base=$CI_BRANCH" | jq -r --arg h "nidaos/deploy-$CI_APP" '.[] | select(.head.ref == $h) | .number' | head -n 1
+    }
+    pr_has_workflow() {
+        local n
+        n=$(pr_number) && [ -n "$n" ] &&
+            gh_api GET "/pulls/$n/files" | jq -r '.[].filename' | grep -qx ".github/workflows/nidaos-deploy-$CI_APP.yml"
+    }
+    pr_merged() {
+        local n
+        n=$(pr_number) && [ -n "$n" ] && gh_api PUT "/pulls/$n/merge" '{"merge_method":"squash"}' > /dev/null
+    }
+    branch_sha() {
+        gh_api GET "/git/ref/heads/$CI_BRANCH" | jq -r .object.sha
+    }
+    # job_state N gives the state of the job N (1 is the newest).
+    job_state() {
+        "${SSH[@]}" "sudo nida --json app jobs $CI_APP" | jq -r ".jobs[$(($1 - 1))].state // empty"
+    }
+    job_count() {
+        "${SSH[@]}" "sudo nida --json app jobs $CI_APP" | jq '.jobs | length'
+    }
+    job_started() { [ "$(job_count)" -ge "$1" ]; }
+    job_final() {
+        local s
+        s=$(job_state 1)
+        [ "$s" = succeeded ] || [ "$s" = failed ] || [ "$s" = cancelled ]
+    }
+    job_succeeded() { [ "$(job_state 1)" = succeeded ]; }
+    active_image() {
+        "${SSH[@]}" "sudo nida --json app show $CI_APP" | jq -r '.active as $a | .versions[] | select(.number == $a) | .image'
+    }
+    image_of_commit() {
+        [ "$(active_image)" = "localhost:5000/$CI_APP:$(cut -c1-12 <<< "$1")" ]
+    }
+    job_log_has_build() {
+        local id
+        id=$("${SSH[@]}" "sudo nida --json app jobs $CI_APP" | jq -r '.jobs[0].id') &&
+            "${SSH[@]}" "sudo nida app job-log $id" > github-job.log &&
+            grep -q 'nida builds' github-job.log && grep -q 'is in operation' github-job.log
+    }
+    second_push() {
+        sed 's/^ARG VERSION=1$/ARG VERSION=2/' "$REPO/tests/hello-app/Containerfile" > hello-v2.Containerfile &&
+            gh_put_file "$CI_BRANCH" Containerfile hello-v2.Containerfile "Change the app of the NidaOS test to version 2"
+    }
+    no_runner_pods() {
+        [ -z "$("${SSH[@]}" "sudo k3s kubectl get pods -n nida-runners -o name")" ]
+    }
+    no_github_runners() {
+        [ "$(gh_api GET "/actions/runners?per_page=100" | jq --arg l "nidaos-$CI_APP" '[.runners[] | select(any(.labels[]; .name == $l))] | length')" = 0 ]
+    }
+    pod_was_isolated() {
+        # The runner pods run as normal users: no privileged container.
+        ! grep -q '"privileged": *true' runner-pod.json && grep -q '"runAsNonRoot": *true' runner-pod.json
+    }
+    save_runner_pod() {
+        "${SSH[@]}" "sudo k3s kubectl get pods -n nida-runners -o json" > runner-pod.json &&
+            [ "$(jq '.items | length' runner-pod.json)" -ge 1 ]
+    }
+
+    expect "NidaOS imports the GitHub App of the test" github_imported
+    expect "the test branch of the private repository is ready" test_branch
+    expect "the owner adds the app of the test" ci_app_added
+    expect "the owner connects the app to the private repository" connected
+    expect "NidaOS opens a pull request with the deploy workflow" retry 60 pr_has_workflow
+    expect "the merge of the pull request passes" pr_merged
+    SHA1=$(branch_sha)
+    expect "the push starts a deploy job" retry 300 job_started 1
+    expect "a runner pod runs the job" retry 300 save_runner_pod
+    expect "the runner pod is not privileged and runs as a normal user" pod_was_isolated
+    retry 1200 job_final || true
+    expect "the deploy job passes" job_succeeded
+    expect "the app runs the image of the commit" retry 60 image_of_commit "$SHA1"
+    expect "the app built on NidaOS answers at its https address" retry 120 page_is "$CI_APP" / nida-hello-1
+    expect "the log of the job has the build and the deploy" retry 60 job_log_has_build
+    expect "a second push gives a new version" second_push
+    SHA2=$(branch_sha)
+    expect "the second push starts a second job" retry 300 job_started 2
+    retry 900 job_final || true
+    expect "the second deploy job passes" job_succeeded
+    expect "the app answers with version 2" retry 120 page_is "$CI_APP" / nida-hello-2
+    expect "the app runs the image of the second commit" image_of_commit "$SHA2"
+    expect "the runner pods stop after the jobs" retry 120 no_runner_pods
+    expect "GitHub has no runner of NidaOS after the jobs" retry 60 no_github_runners
+    {
+        echo "## nida runners"
+        "${SSH[@]}" sudo nida runners || true
+        echo "## nida app jobs $CI_APP"
+        "${SSH[@]}" sudo nida app jobs "$CI_APP" || true
+        cat github-connect.log github-import.log 2>/dev/null || true
+    } | tee -a report.txt
+    expect "the disconnect removes the connection" nida_runner "app disconnect $CI_APP"
+    nida_app "remove $CI_APP --yes" > /dev/null || true
+    "${SSH[@]}" "sudo nida github remove --yes" > /dev/null || true
+    gh_delete_branch "$CI_BRANCH"
+    gh_delete_branch "nidaos/deploy-$CI_APP"
+else
+    echo "SKIP the flow from a push to an app in operation: the GitHub App of the test is not set" | tee -a report.txt
+fi
 
 echo "==> Examine the desktop and the RDP service"
 rdp_password=$(head -c 18 /dev/urandom | base64 | tr -d '/+=')
