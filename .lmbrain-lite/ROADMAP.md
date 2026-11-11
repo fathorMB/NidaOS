@@ -14,13 +14,13 @@ generated: true
 | 3 | M-03 | App hosting from GitHub repositories | done | 9/9 | 100% |
 | 4 | M-04 | Managed databases | done | 10/10 | 100% |
 | 5 | M-05 | GitHub runners and the deploy flow | done | 9/9 | 100% |
-| 6 | M-06 | Web console | proposed | 0/10 | 0% |
-| 7 | M-07 | Installer with the disk planner | proposed | 0/10 | 0% |
-| 8 | M-08 | Monitoring desktop | proposed | 0/7 | 0% |
-| 9 | M-09 | Agent access | proposed | 0/6 | 0% |
-| 10 | M-10 | Internet gateway on a Raspberry Pi | proposed | 0/8 | 0% |
-| 11 | M-11 | Updates, rollback and security | proposed | 0/8 | 0% |
-| 12 | M-12 | Installation on the real computer | proposed | 0/6 | 0% |
+| 6 | M-06 | Web console | done | 10/10 | 100% |
+| 7 | M-07 | Installer with the disk planner | approved | 0/10 | 0% |
+| 8 | M-08 | Monitoring desktop | approved | 0/7 | 0% |
+| 9 | M-09 | Agent access | approved | 0/7 | 0% |
+| 10 | M-10 | Internet gateway on a Raspberry Pi | approved | 0/9 | 0% |
+| 11 | M-11 | Updates, rollback and security | approved | 0/8 | 0% |
+| 12 | M-12 | Installation on the real computer | approved | 0/6 | 0% |
 
 ## M-01 — Feasibility proof of the Fedora bootc base
 
@@ -59,49 +59,49 @@ generated: true
 
 ## M-06 — Web console
 
-- `status`: proposed
+- `status`: done
 - `priority`: 6
 - `file`: milestones/M-06.md
 - `outcome`: The operator manages NidaOS from a browser in the home network. Each page shows the live metrics and the live logs.
 
 ## M-07 — Installer with the disk planner
 
-- `status`: proposed
+- `status`: approved
 - `priority`: 7
 - `file`: milestones/M-07.md
 - `outcome`: The operator installs NidaOS from a USB key with the six steps of the mockup. The installer measures the disks, proposes the plan and erases only after a confirmation.
 
 ## M-08 — Monitoring desktop
 
-- `status`: proposed
+- `status`: approved
 - `priority`: 8
 - `file`: milestones/M-08.md
 - `outcome`: The operator connects with Remote Desktop and sees the NidaOS desktop: the monitor, the terminal, the files and the logs, all with live data.
 
 ## M-09 — Agent access
 
-- `status`: proposed
+- `status`: approved
 - `priority`: 9
 - `file`: milestones/M-09.md
 - `outcome`: An agent such as Claude Code or Hermes manages NidaOS with the same commands as the console. Rules tell what the agent can do without the approval of the operator.
 
 ## M-10 — Internet gateway on a Raspberry Pi
 
-- `status`: proposed
+- `status`: approved
 - `priority`: 10
 - `file`: milestones/M-10.md
 - `outcome`: The operator opens the selected apps and the console from the internet through a small gateway with sign-in. The home router opens no port.
 
 ## M-11 — Updates, rollback and security
 
-- `status`: proposed
+- `status`: approved
 - `priority`: 11
 - `file`: milestones/M-11.md
 - `outcome`: NidaOS gets signed updates from a registry and can go back to the version before. The system runs with SELinux on and without the shortcuts of the feasibility proof.
 
 ## M-12 — Installation on the real computer
 
-- `status`: proposed
+- `status`: approved
 - `priority`: 12
 - `file`: milestones/M-12.md
 - `outcome`: NidaOS runs on the home server of the operator, with the apps and the databases in operation.

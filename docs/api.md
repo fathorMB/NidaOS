@@ -8,10 +8,12 @@ This document is for the persons that make an interface for NidaOS: the web cons
 
 | Connection | Address | Identity |
 | --- | --- | --- |
+| Web console (HTTPS) | `https://nidaos.local` | A session cookie or a token (section 2). |
 | Network (HTTP) | `http://<computer>:8470` | A session cookie or a token (section 2). |
 | Local socket | `/run/nidaos/core.sock` (Unix socket) | `local`, with the level `admin`. Only `root` and the members of the group `nida` can open it. |
 
 - All the paths start with `/api/v1/`, except the probes `/healthz` and `/readyz`.
+- **The web console** (milestone M-06, decision D29) is at `https://nidaos.local`. Traefik gets the request on the port 443 with the certificate of the NidaOS authority (section 4.9) and sends it to nida-core (`NIDA_CORE_CONSOLE_UPSTREAM`, default `10.42.0.1:8470`). `http://nidaos.local` sends the browser to `https://`. The console and the API have the same origin, thus the console uses the API at `/api/v1/`. Each `GET` out of `/api/` gives a file of the console, or its page `index.html`. These files are open: the data of the console come from the API, with the rules of section 2.
 - The service does not use TLS. When an interface goes through the network of an other computer, put a proxy with TLS in front of the service. The proxy must send `X-Forwarded-Proto: https`, thus the session cookie gets the `Secure` flag.
 - A path that has no data source in the configuration does not exist (404). For example, `/api/v1/logs/search` does not exist when `NIDA_CORE_LOG_DIR=off`.
 
@@ -40,6 +42,7 @@ curl --unix-socket /run/nidaos/core.sock http://nida/api/v1/state
 | Paths | Access |
 | --- | --- |
 | `/healthz`, `/readyz`, `/api/v1/health`, `/api/v1/auth/status`, `/api/v1/auth/login`, `/api/v1/ca.crt` | Open. No identity is necessary. |
+| Each `GET` out of `/api/`: the files of the web console | Open. |
 | `/api/v1/auth/logout`, `/api/v1/auth/me` | Each identity. |
 | `/api/v1/tokens`, `/api/v1/tokens/{id}`, `/api/v1/auth/password`, `GET /api/v1/databases/{name}/connection` | The level `admin`. |
 | Each other `GET` | The level `read` or `admin`. |
@@ -51,7 +54,7 @@ When a request uses the session cookie and its method is not `GET`, `HEAD` or `O
 
 ### 2.4 Too many wrong passwords
 
-After 5 wrong passwords from one address, the address must wait. The wait doubles after each new failure, to a maximum of 15 minutes. A correct password resets the count. While the address must wait, the service answers `429 too_many_attempts` with the header `Retry-After` (seconds).
+After 5 wrong passwords from one address, the address must wait. For a request through Traefik (from the pod network `10.42.0.0/16`), the address is the last address of `X-Forwarded-For`. The wait doubles after each new failure, to a maximum of 15 minutes. A correct password resets the count. While the address must wait, the service answers `429 too_many_attempts` with the header `Retry-After` (seconds).
 
 ## 3. The general rules of the responses
 
@@ -101,7 +104,7 @@ Each error has this body:
 | 409 | `app_exists` | An app with this name exists. |
 | 409 | `app_busy` | A deploy of the app is in progress. |
 | 409 | `app_moving` | A move of a folder of the app is in progress. |
-| 409 | `no_rollback` | The target of the rollback is not a version in the state `replaced`. |
+| 409 | `no_rollback` | The target of an app rollback is not a version in the state `replaced`, or there is no system version before the version in operation (section 4.12). |
 | 409 | `no_version` | The app has no version in operation (for a restart). |
 | 503 | `apps_not_ready` | k3s is not ready. Try again after some seconds. |
 | 500 | `app_failed` | An internal problem of an app operation. |
@@ -120,6 +123,9 @@ Each error has this body:
 | 409 | `repository_connected`, `repository_in_use` | The app has a repository already, or an other app uses the repository. |
 | 502 | `github_error`, `github_unavailable` | GitHub gave an error, or GitHub is not available. |
 | 401 | `job_token_required` | The job endpoint (section 4.11.6) got no valid job token. |
+| 409 | `update_busy` | An update operation is in progress (section 4.12). |
+| 409 | `nothing_to_install` | No system version waits for a restart. |
+| 503 | `updates_unavailable` | The `bootc` command does not answer. |
 
 ## 4. The paths
 
@@ -138,6 +144,7 @@ Each error has this body:
 | `GET /api/v1/ca.crt`, `GET /api/v1/ca` | 4.9 |
 | `/api/v1/databases`, `/api/v1/databases/{name}/...` | 4.10 |
 | `/api/v1/github/...`, `GET /api/v1/runners`, `/api/v1/apps/{name}/repository`, `/api/v1/apps/{name}/jobs`, `/api/v1/jobs/{id}` | 4.11 |
+| `GET /api/v1/updates`, `POST /api/v1/updates/check`, `/download`, `/restart`, `/rollback` | 4.12 |
 
 ### 4.1 Health
 
@@ -780,6 +787,43 @@ The job endpoint is a second HTTP server of nida-core on the bridge of the pod n
 | `GET /api/v1/apps/{app}` | The App, for `--wait`. |
 
 Each other request gives `403 forbidden`. A request without a valid token gives `401 job_token_required`, with `WWW-Authenticate: Basic realm="nidaos"` for the registry paths.
+
+### 4.12 The system versions (milestone M-06)
+
+NidaOS is a bootc image (decision D1). bootc keeps two system versions on the disk: the version in operation and the version before it. An update downloads a new version that starts at the next restart. These paths show the versions and start the operations of bootc. They exist only when the computer has the command `bootc`.
+
+| Method and path | Access | Result |
+| --- | --- | --- |
+| `GET /api/v1/updates` | `read` | The Updates object. |
+| `POST /api/v1/updates/check` | `admin` | `202` and the Updates object. NidaOS asks the registry for a newer version (`bootc upgrade --check`). |
+| `POST /api/v1/updates/download` | `admin` | `202`. NidaOS downloads the newer version for the next restart (`bootc upgrade`). |
+| `POST /api/v1/updates/restart` | `admin` | `202`. The computer restarts after 2 seconds into the downloaded version, or into the queued rollback. Else `409 nothing_to_install`. |
+| `POST /api/v1/updates/rollback` | `admin` | `202`. Body (optional): `{"restart": true}`. The version before becomes the version of the next restart (`bootc rollback`). With `restart`, the computer restarts after it. |
+
+The operations run in the service. Only one operation runs at a time: an other operation gives `409 update_busy`. Read the Updates object until `busy` is not set.
+
+```json
+{
+  "booted": {"image": "ghcr.io/fathormb/nidaos:proof", "version": "45.20261111.0", "timestamp": "2026-11-11T06:00:00Z", "digest": "sha256:..."},
+  "staged": {"image": "ghcr.io/fathormb/nidaos:proof", "version": "45.20261118.0", "digest": "sha256:..."},
+  "rollback": {"image": "ghcr.io/fathormb/nidaos:proof", "version": "45.20261104.0", "digest": "sha256:..."},
+  "available": {"image": "ghcr.io/fathormb/nidaos:proof", "version": "45.20261125.0", "digest": "sha256:..."},
+  "rollback_queued": false,
+  "busy": "downloading",
+  "last_check": "2026-11-11T09:30:00Z",
+  "error": ""
+}
+```
+
+| Field | Values |
+| --- | --- |
+| `booted` | The version in operation. |
+| `staged` | `omitempty`: the downloaded version that starts at the next restart. |
+| `rollback` | `omitempty`: the version before, for a rollback. |
+| `available` | `omitempty`: the newer version that the last check found. It is not on the disk yet. |
+| `rollback_queued` | `omitempty`: the next restart starts the `rollback` version. |
+| `busy` | `omitempty`: `checking`, `downloading`, `rolling_back` or `restarting`. |
+| `last_check`, `error` | `omitempty`: the time of the last check, and the cause of the last operation that failed. |
 
 ## 5. The live streams
 

@@ -146,3 +146,31 @@ One line per action. Format: `timestamp | by:<who> | <target or -> | <kind> | <m
 2026-11-11T19:07 | by:lead | M-05 | status | active -> done: The nine tasks are complete, and run 43068421538 passed all 109 checks of the VM test.
 2026-11-11T19:07 | by:lead | M-05 | code-snapshot | Code snapshot: 14555 production lines, 5477 test lines, 158 tests, 128 source files.
 2026-11-11T19:07 | by:lead | M-05 | code-note | Wrote the code notes: 6 steps.
+2026-11-11T20:50 | by:lead | M-05 | note | The lead opened the pull request 4 (m05-runners to main) for the milestone M-05.
+2026-11-11T20:55 | by:lead | M-10/T-09 | task | added 'Make the gateway page of the console from the mockup, with the live state of the link'
+2026-11-11T20:55 | by:lead | M-09/T-07 | task | added 'Make the agents page of the console from the mockup, with the tokens, the rules and the record of the actions'
+2026-11-11T20:56 | by:lead | M-06 | decision | The operator selected https://nidaos.local for the console (D29) and moved the gateway and agents pages to M-10 and M-09 (D30); M-06 waits for the approval.
+2026-11-11T20:57 | by:operator | M-06 | status | proposed -> approved
+2026-11-11T20:57 | by:lead | M-06 | status | approved -> active: The operator approved M-06 with the decisions D29 and D30.
+2026-11-11T21:26 | by:lead | M-06 | commit | bcac228 adds the web console, the console route at https://nidaos.local and the updates API (D31); the unit tests and 7 browser tests against the fake API pass, and run 43095769410 examines it in the VM.
+2026-11-11T22:00 | by:operator | M-07 | status | proposed -> approved
+2026-11-11T22:00 | by:operator | M-08 | status | proposed -> approved
+2026-11-11T22:00 | by:operator | M-09 | status | proposed -> approved
+2026-11-11T22:00 | by:operator | M-10 | status | proposed -> approved
+2026-11-11T22:00 | by:operator | M-11 | status | proposed -> approved
+2026-11-11T22:00 | by:operator | M-12 | status | proposed -> approved
+2026-11-11T22:03 | by:lead | M-07 | decision | The operator selected a web page in a kiosk browser (D32), bootc install without Anaconda (D33) and one owner password (D34) for M-07.
+2026-11-11T23:27 | by:lead | M-06/T-01 | task | done: The console has a React and Vite frame with the sign-in. nida-core serves it at https://nidaos.local, and run 43105643515 signed in with a browser. — Make the frame of the console with React and Vite, with the sign-in
+2026-11-11T23:27 | by:lead | M-06/T-02 | task | done: styles.css has the tokens of the mockup with a light and a dark theme. ui.tsx has the shared parts, and the browser test changed the theme. — Make the design tokens and the shared parts from the mockups, with the light and the dark theme
+2026-11-11T23:27 | by:lead | M-06/T-03 | task | done: The overview shows the live meters, the items that need attention, the recent changes and the live log. The VM browser test saw the values change without a reload. — Make the overview page with the live metrics, the items that need attention and the live log
+2026-11-11T23:27 | by:lead | M-06/T-04 | task | done: The apps list, the app page with six tabs and the form are complete. In the VM, the browser test added an app, set a variable and removed the app. — Make the list of apps, the app page with its six tabs and the form to add an app
+2026-11-11T23:27 | by:lead | M-06/T-05 | task | done: The databases list, the database page with five tabs and the form are complete. The tests against the fake API examine them. — Make the list of databases, the database page with its five tabs and the form to add a database
+2026-11-11T23:27 | by:lead | M-06/T-06 | task | done: The storage page shows the tiers, the disks and the live disk activity. The updates page uses the new API of bootc (D31), and the VM test saw the staged and the rollback versions. — Make the storage page and the updates page
+2026-11-11T23:27 | by:lead | M-06/T-07 | task | done: The logs page has the source, level and text filters, the pause, the search in the log store and the save to a file. — Make the logs page with the filters, the search and the pause
+2026-11-11T23:27 | by:lead | M-06/T-08 | task | done: The runners page shows the GitHub App with the setup and the import, the connected repositories, the jobs and the runner log. The gateway and agents pages go to M-10 and M-09 (D30). — Make the runners page with the GitHub App, the connected repositories and the jobs
+2026-11-11T23:27 | by:lead | M-06/T-09 | task | done: A stopped stream gives a red banner and the time of the last data. The unit tests and the VM browser test examine it. — Show clearly when the live stream stops, with the time of the last data
+2026-11-11T23:27 | by:lead | M-06/T-10 | task | done: Run 43105643515 passed 116 of 116 checks. The 7 Playwright tests passed in Chromium against the VM. The operator does the check from Windows on the real computer in M-12. — Test the console in the virtual machine with a browser on the Windows computer
+2026-11-11T23:27 | by:lead | M-06 | commit | 0ef1617 is the last code commit of M-06. Run 43105643515 passed all 116 checks of the VM test.
+2026-11-11T23:27 | by:lead | M-06 | status | active -> done: The ten tasks are complete, and run 43105643515 passed all 116 checks of the VM test with the browser test.
+2026-11-11T23:27 | by:lead | M-06 | code-snapshot | Code snapshot: 19803 production lines, 6199 test lines, 188 tests, 165 source files.
+2026-11-11T23:27 | by:lead | M-06 | code-note | Wrote the code notes: 6 steps.

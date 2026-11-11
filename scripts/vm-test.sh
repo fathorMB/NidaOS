@@ -57,7 +57,7 @@ QEMU=(
     -device "ide-hd,drive=d1,bus=ide.1,rotation_rate=1"
     -drive "id=d2,if=none,format=qcow2,file=ssd-a.qcow2"
     -device "ide-hd,drive=d2,bus=ide.2,rotation_rate=1"
-    -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:3389-:3389,hostfwd=tcp:127.0.0.1:8470-:8470,hostfwd=tcp:127.0.0.1:15432-:15432"
+    -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:3389-:3389,hostfwd=tcp:127.0.0.1:8470-:8470,hostfwd=tcp:127.0.0.1:15432-:15432,hostfwd=tcp:127.0.0.1:8443-:443"
     -device "virtio-net-pci,netdev=n0"
     -serial "file:serial.log"
     -monitor "unix:monitor.sock,server,nowait"
@@ -70,7 +70,8 @@ screenshot() {
 # Print the last lines of the serial console without the control characters.
 show_serial() {
     echo "---- last $1 lines of the serial console ----"
-    sed -e 's/\[[0-9;?]*[A-Za-z]//g' serial.log | tr -d '' | grep -v '^[[:space:]]*$' | tail -n "$1" | cut -c1-400
+    sed -e 's/\[[0-9;?]*[A-Za-z]//g' serial.log | tr -d '
+' | grep -v '^[[:space:]]*$' | tail -n "$1" | cut -c1-400
     echo "---- end of the serial console ----"
 }
 
@@ -713,6 +714,68 @@ else
     echo "SKIP the flow from a push to an app in operation: the GitHub App of the test is not set" | tee -a report.txt
 fi
 
+echo "==> Examine the web console (M-06)"
+# The console is at https://nidaos.local (decision D29): Traefik gets the
+# request with the certificate of the NidaOS authority and sends it to
+# nida-core. The curl checks run in the VM with the authority. Then a real
+# browser on the runner opens the console through the port 8443 of QEMU.
+console_curl() {
+    "${SSH[@]}" "curl -s --max-time 10 --cacert nida-ca.crt --resolve nidaos.local:443:$vm_ip --resolve nidaos.local:80:$vm_ip $*"
+}
+console_https() {
+    "${SSH[@]}" "sudo nida ca > nida-ca.crt" &&
+        console_curl -f https://nidaos.local/apps | grep -q 'id="root"'
+}
+console_api_needs_sign_in() {
+    [ "$(console_curl -o /dev/null -w '%{http_code}' https://nidaos.local/api/v1/state)" = 401 ]
+}
+console_redirect() {
+    local out
+    out=$(console_curl -o /dev/null -w "'%{http_code} %{redirect_url}'" http://nidaos.local/logs)
+    case "$out" in
+    "301 https://nidaos.local/logs" | "308 https://nidaos.local/logs") return 0 ;;
+    esac
+    echo "redirect: $out" >&2
+    return 1
+}
+console_secure_cookie() {
+    console_curl -D - -o /dev/null -H "'Content-Type: application/json'" -H "'Origin: https://nidaos.local'" \
+        -d "'{\"password\":\"$owner_password\"}'" https://nidaos.local/api/v1/auth/login |
+        grep -i '^set-cookie: nida_session=' | grep -qi 'secure'
+}
+updates_api() {
+    "${SSH[@]}" "sudo curl -s --max-time 30 --unix-socket /run/nidaos/core.sock http://nida/api/v1/updates" > updates.json &&
+        grep -q '"booted"' updates.json
+}
+console_browser() {
+    # The test runs as the user of the runner: the browser is in its home.
+    local dir=$PWD/console-e2e
+    mkdir -p "$dir" && chmod 0777 "$dir"
+    (cd "$REPO/console" && sudo -u "${SUDO_USER:-runner}" -H env \
+        NIDA_URL=https://nidaos.local:8443 NIDA_RESOLVE=127.0.0.1 NIDA_PASSWORD="$owner_password" NIDA_OUT="$dir" \
+        timeout 900 npx playwright test) > console-e2e.log 2>&1
+    local rc=$?
+    cp "$dir"/console-*.png . 2>/dev/null || true
+    return $rc
+}
+expect "the console answers at https://nidaos.local with the certificate of NidaOS" retry 120 console_https
+expect "the API through the console address needs a sign-in" console_api_needs_sign_in
+expect "http://nidaos.local sends the browser to https" console_redirect
+expect "the session cookie of the console has the Secure flag" console_secure_cookie
+expect "the updates API gives the system version in operation" updates_api
+if [ -d "$REPO/console/node_modules/@playwright" ]; then
+    expect "a browser signs in to the console and opens each page with live data" console_browser
+else
+    echo "SKIP the browser test of the console: Playwright is not installed" | tee -a report.txt
+fi
+{
+    echo "## console browser test"
+    tail -n 40 console-e2e.log 2>/dev/null || true
+    echo "## updates"
+    cat updates.json 2>/dev/null || true
+    echo
+} | tee -a report.txt
+
 echo "==> Examine the desktop and the RDP service"
 rdp_password=$(head -c 18 /dev/urandom | base64 | tr -d '/+=')
 rdp_listens() {
@@ -768,10 +831,18 @@ if [ -n "${UPDATE_REF:-}" ]; then
     expect "the system runs the first image version" \
         "${SSH[@]}" grep -qx "NIDAOS_BUILD=${BUILD_BEFORE:-v1}" /usr/lib/nidaos/release
     expect "bootc downloads and stages the new image" update_stage
+    updates_staged() {
+        "${SSH[@]}" "sudo curl -s --max-time 30 --unix-socket /run/nidaos/core.sock http://nida/api/v1/updates" | grep -q '"staged":{"image":"[^"]*nidaos:v2"'
+    }
+    expect "the updates API shows the staged version" retry 30 updates_staged
     expect "the system restarts after the update" reboot_vm
     expect "the system runs the new image version" \
         "${SSH[@]}" grep -qx "NIDAOS_BUILD=${BUILD_AFTER:-v2}" /usr/lib/nidaos/release
     expect "the core service runs the new image version" retry 60 core_version "${BUILD_AFTER:-v2}"
+    updates_rollback() {
+        "${SSH[@]}" "sudo curl -s --max-time 30 --unix-socket /run/nidaos/core.sock http://nida/api/v1/updates" | grep -q '"rollback":{"image"'
+    }
+    expect "the updates API shows the version before for a rollback" retry 30 updates_rollback
     expect "the log store keeps its lines after the update" store_search
     expect "the apps stay in operation after the update" retry 180 page_is api / nida-hello-api
     expect "the data on the storage tiers stays after the update" \

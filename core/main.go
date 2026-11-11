@@ -24,6 +24,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"syscall"
@@ -33,11 +34,13 @@ import (
 	"github.com/fathorMB/NidaOS/core/internal/auth"
 	"github.com/fathorMB/NidaOS/core/internal/ca"
 	"github.com/fathorMB/NidaOS/core/internal/config"
+	"github.com/fathorMB/NidaOS/core/internal/console"
 	"github.com/fathorMB/NidaOS/core/internal/httpserver"
 	"github.com/fathorMB/NidaOS/core/internal/logs"
 	"github.com/fathorMB/NidaOS/core/internal/mdns"
 	"github.com/fathorMB/NidaOS/core/internal/metrics"
 	"github.com/fathorMB/NidaOS/core/internal/system"
+	"github.com/fathorMB/NidaOS/core/internal/updates"
 	"github.com/fathorMB/NidaOS/core/internal/version"
 )
 
@@ -129,7 +132,7 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 			logger.Error("the apps file is not available: the service has no app hosting", "err", err)
 			close(appsDone)
 		} else {
-			opts := apps.Options{Domain: cfg.AppsDomain, Logger: logger}
+			opts := apps.Options{Domain: cfg.AppsDomain, ConsoleUpstream: cfg.ConsoleUpstream, Logger: logger}
 			// The certificate authority of the app addresses (D20).
 			authority, err := ca.Open(cfg.CADir, cfg.AppsDomain)
 			if err != nil {
@@ -189,6 +192,14 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 	if runnerPart != nil {
 		deps.Runners = runnerPart.hosting
 	}
+	// The system versions of bootc (the updates page of the console).
+	if _, err := exec.LookPath("bootc"); err == nil {
+		deps.Updates = &httpserver.UpdateHosting{Service: updates.New(ctx, updates.ExecRunner, logger)}
+	} else {
+		logger.Info("bootc is not on this computer: the API has no update paths")
+	}
+	// The web console (decision D29).
+	deps.Console = console.New()
 
 	// The log store. Without it, the service keeps the logs only in memory.
 	var store *logs.Store

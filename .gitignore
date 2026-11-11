@@ -6,3 +6,9 @@ out/
 *.iso
 *.qcow2
 *.vhdx
+
+# The build of the web console. The image build makes it again.
+core/internal/console/dist/*
+!core/internal/console/dist/README.txt
+console/node_modules/
+console/test-results/
