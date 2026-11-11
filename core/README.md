@@ -50,6 +50,8 @@ NIDA_CORE_ROOT=internal/system/testdata/host go run .
 
 ## Paths
 
+The full description of the API, for the persons that make an interface, is in [docs/api.md](../docs/api.md).
+
 | Path | Usage |
 | --- | --- |
 | `GET /healthz` | The service is alive. No sign-in. |

@@ -76,3 +76,7 @@ One line per action. Format: `timestamp | by:<who> | <target or -> | <kind> | <m
 2026-11-11T01:38 | by:lead | M-02/T-08 | finding | Correction: the user nida has its own group nida from the installer, thus it opens the socket without sudo. M-07/T-10 is still necessary for an owner with another name.
 2026-11-11T02:29 | by:lead | M-02/T-08 | task | done: Run 42935759563 passed all 38 checks. The image starts nida-core, and the VM test examines the metrics and the logs of real pods, the journal, the search, the access rules and the update. — Add the core service to the image and test it in the virtual machine
 2026-11-11T02:29 | by:lead | M-02/T-08 | test | Runs 1 to 3 failed because of errors in the test script: ssh lost the quotes of two commands, and k3s had no service account yet. Run 4 passed.
+2026-11-11T09:11 | by:lead | M-02/T-09 | task | done: docs/api.md tells all the paths, the sign-in and the access rules, the error codes, the JSON shapes, the live streams and the rules for changes to version 1. Each error code of the code is in the document. — Write the description of the API for the persons that make the interfaces
+2026-11-11T09:11 | by:lead | - | code-snapshot | Code snapshot: 4679 production lines, 2494 test lines, 74 tests, 60 source files, 60 files with no area.
+2026-11-11T09:12 | by:lead | - | code-snapshot | Rebuilt the code history: 1 counted again, 1 mapped again, 1 skipped.
+2026-11-11T09:12 | by:lead | - | code-snapshot | Code snapshot: 4679 production lines, 2494 test lines, 74 tests, 60 source files.

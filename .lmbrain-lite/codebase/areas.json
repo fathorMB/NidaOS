@@ -1,6 +1,67 @@
 {
   "schema_version": 1,
-  "areas": [],
+  "areas": [
+    {
+      "id": "cli",
+      "name": "nida command",
+      "description": "The nida command for the owner, the scripts and the agents.",
+      "patterns": ["core/cmd/**", "core/internal/client/**"]
+    },
+    {
+      "id": "api",
+      "name": "HTTP API",
+      "description": "The router, the access rules and the handlers of the API of nida-core.",
+      "patterns": ["core/internal/httpserver/**", "docs/api.md"]
+    },
+    {
+      "id": "auth",
+      "name": "Sign-in and tokens",
+      "description": "The owner password, the sessions, the tokens and the login limiter.",
+      "patterns": ["core/internal/auth/**"]
+    },
+    {
+      "id": "logs",
+      "name": "Live logs",
+      "description": "The journal and pod readers, the log pipeline and the log store with the search.",
+      "patterns": ["core/internal/logs/**"]
+    },
+    {
+      "id": "metrics",
+      "name": "Live metrics",
+      "description": "The sampler of the host and workload metrics, and the stream hub.",
+      "patterns": ["core/internal/metrics/**", "core/internal/stream/**"]
+    },
+    {
+      "id": "state",
+      "name": "Computer state",
+      "description": "The host, the disks and the storage tiers.",
+      "patterns": ["core/internal/system/**"]
+    },
+    {
+      "id": "core-service",
+      "name": "Core service",
+      "description": "The start of nida-core, its configuration, the local socket and the version.",
+      "patterns": ["core/*", "core/internal/config/**", "core/internal/version/**"]
+    },
+    {
+      "id": "image",
+      "name": "Operating system image",
+      "description": "The bootc image of NidaOS, its files and its services.",
+      "patterns": ["image/**"]
+    },
+    {
+      "id": "installer",
+      "name": "Installer",
+      "description": "The installer ISO and the disk plan.",
+      "patterns": ["installer/**"]
+    },
+    {
+      "id": "test-rig",
+      "name": "Test rig",
+      "description": "The VM test, the local test and the CI workflows.",
+      "patterns": ["scripts/**", "tests/**", "vm/**", ".github/**"]
+    }
+  ],
   "categories": {
     "spike": [],
     "tooling": [],
