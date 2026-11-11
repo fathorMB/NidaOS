@@ -241,8 +241,60 @@ func (s *Store) addVersion(a *App, v Version) int {
 	}
 	v.Number, v.State, v.Created = n, StateDeploying, s.now()
 	a.Versions = append(a.Versions, v)
+	prune(a)
 	return n
 }
+
+// KeepVersions is the number of versions that an app keeps.
+const KeepVersions = 5
+
+// prune keeps the newest KeepVersions versions. It also keeps the version
+// in operation, if it is older.
+func prune(a *App) {
+	if len(a.Versions) <= KeepVersions {
+		return
+	}
+	first := len(a.Versions) - KeepVersions
+	kept := make([]Version, 0, KeepVersions+1)
+	for i, v := range a.Versions {
+		if i >= first || v.Number == a.Active {
+			kept = append(kept, v)
+		}
+	}
+	a.Versions = kept
+}
+
+// ErrNoRollback: the version cannot be the target of a rollback.
+var ErrNoRollback = errors.New("only a version that was in operation can be the target of a rollback")
+
+// Rollback adds a new version that copies the image and the config of an
+// old version. The controller deploys it as each other version.
+func (s *Store) Rollback(name string, number int) (Version, error) {
+	var v Version
+	_, err := s.change(name, func(a *App) error {
+		if _, busy := a.Deploying(); busy {
+			return ErrBusy
+		}
+		old, ok := a.Version(number)
+		if !ok {
+			return fmt.Errorf("%w: the app keeps only the last %d versions", ErrVersionNotFound, KeepVersions)
+		}
+		if old.Number == a.Active {
+			return fmt.Errorf("%w: the version %d is in operation now", ErrNoRollback, number)
+		}
+		if old.State != StateReplaced {
+			return ErrNoRollback
+		}
+		n := s.addVersion(a, Version{Image: old.Image, Commit: old.Commit, RollbackOf: old.Number,
+			Summary: fmt.Sprintf("rollback to version %d", old.Number), Config: old.Config.clone()})
+		v, _ = a.Version(n)
+		return nil
+	})
+	return v, err
+}
+
+// ErrVersionNotFound: the version does not exist.
+var ErrVersionNotFound = errors.New("the version does not exist")
 
 // Deploy adds a new version of the image. The controller deploys it.
 func (s *Store) Deploy(name, image, commit, summary string) (Version, error) {

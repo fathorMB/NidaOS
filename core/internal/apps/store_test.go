@@ -2,9 +2,11 @@ package apps
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -168,5 +170,78 @@ func TestRemoveDeletesTheSecrets(t *testing.T) {
 	_, _ = s.Create(App{Name: "blog"})
 	if len(s.SecretNames("blog")) != 0 {
 		t.Error("a new app with the same name got the old secrets")
+	}
+}
+
+// deployAndFinish adds a version and writes its result.
+func deployAndFinish(t *testing.T, s *Store, image, state string) int {
+	t.Helper()
+	v, err := s.Deploy("blog", image, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Finish("blog", v.Number, state, ""); err != nil {
+		t.Fatal(err)
+	}
+	return v.Number
+}
+
+func TestStoreKeepsFiveVersions(t *testing.T) {
+	s, _ := newStore(t)
+	_, _ = s.Create(App{Name: "blog", Copies: 1})
+	deployAndFinish(t, s, "localhost:5000/blog:1", StateServing)
+	for i := 2; i <= 8; i++ {
+		deployAndFinish(t, s, "localhost:5000/blog:"+strconv.Itoa(i), StateFailed)
+	}
+	a, _ := s.Get("blog")
+	var numbers []int
+	for _, v := range a.Versions {
+		numbers = append(numbers, v.Number)
+	}
+	// Version 1 stays, because it is in operation.
+	if fmt.Sprint(numbers) != "[1 4 5 6 7 8]" || a.Active != 1 {
+		t.Errorf("versions %v, active %d", numbers, a.Active)
+	}
+	deployAndFinish(t, s, "localhost:5000/blog:9", StateServing)
+	deployAndFinish(t, s, "localhost:5000/blog:10", StateServing)
+	a, _ = s.Get("blog")
+	if len(a.Versions) != KeepVersions || a.Versions[0].Number != 6 {
+		t.Errorf("versions %+v", a.Versions)
+	}
+}
+
+func TestRollback(t *testing.T) {
+	s, _ := newStore(t)
+	_, _ = s.Create(App{Name: "blog", Copies: 1, Config: Config{Port: port(8080)}})
+	deployAndFinish(t, s, "localhost:5000/blog:1", StateServing)
+	cfg := Config{Port: port(9090)}
+	_, _, _ = s.Update("blog", Change{Config: &cfg})
+	_ = s.Finish("blog", 2, StateServing, "")
+	deployAndFinish(t, s, "localhost:5000/blog:3", StateFailed)
+
+	if _, err := s.Rollback("blog", 2); !errors.Is(err, ErrNoRollback) {
+		t.Errorf("rollback to the active version: %v", err)
+	}
+	if _, err := s.Rollback("blog", 3); !errors.Is(err, ErrNoRollback) {
+		t.Errorf("rollback to a failed version: %v", err)
+	}
+	if _, err := s.Rollback("blog", 42); !errors.Is(err, ErrVersionNotFound) {
+		t.Errorf("rollback to an unknown version: %v", err)
+	}
+	v, err := s.Rollback("blog", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Number != 4 || v.RollbackOf != 1 || v.Image != "localhost:5000/blog:1" || *v.Config.Port != 8080 || v.State != StateDeploying {
+		t.Errorf("rollback version %+v", v)
+	}
+	if _, err := s.Rollback("blog", 1); !errors.Is(err, ErrBusy) {
+		t.Errorf("second rollback during a deploy: %v", err)
+	}
+	_ = s.Finish("blog", 4, StateServing, "")
+	a, _ := s.Get("blog")
+	v2, _ := a.Version(2)
+	if a.Active != 4 || v2.State != StateReplaced {
+		t.Errorf("active %d, version 2 %s", a.Active, v2.State)
 	}
 }
