@@ -323,3 +323,19 @@ func (s *Store) SetState(name, state, reason string) error {
 	})
 	return err
 }
+
+// DeleteSecret removes one password of a database.
+func (s *Store) DeleteSecret(db, key string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	old, ok := s.secrets[db][key]
+	if !ok {
+		return nil
+	}
+	delete(s.secrets[db], key)
+	if err := s.save(); err != nil {
+		s.secrets[db][key] = old
+		return err
+	}
+	return nil
+}

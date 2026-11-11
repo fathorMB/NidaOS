@@ -32,6 +32,9 @@ type fileData struct {
 	// Secrets has the secret values of each app. Only root can read the
 	// file. The API never gives a value back.
 	Secrets map[string]map[string]string `json:"secrets,omitempty"`
+	// Linked has the secrets that an other part of NidaOS gives to an app,
+	// for example the connection of a database (M-04): app, source, name.
+	Linked map[string]map[string]map[string]string `json:"linked,omitempty"`
 }
 
 // Store keeps the apps in a JSON file (decision D22). Each change writes
@@ -44,12 +47,13 @@ type Store struct {
 	mu      sync.Mutex
 	apps    map[string]*App
 	secrets map[string]map[string]string
+	linked  map[string]map[string]map[string]string
 }
 
 // OpenStore reads the apps file. A missing file is an empty store.
 func OpenStore(path string) (*Store, error) {
 	s := &Store{path: path, now: func() time.Time { return time.Now().UTC() },
-		apps: map[string]*App{}, secrets: map[string]map[string]string{}}
+		apps: map[string]*App{}, secrets: map[string]map[string]string{}, linked: map[string]map[string]map[string]string{}}
 	b, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return s, nil
@@ -68,12 +72,15 @@ func OpenStore(path string) (*Store, error) {
 	for k, v := range d.Secrets {
 		s.secrets[k] = v
 	}
+	for k, v := range d.Linked {
+		s.linked[k] = v
+	}
 	return s, nil
 }
 
 // save writes the file. The caller holds s.mu.
 func (s *Store) save() error {
-	d := fileData{Secrets: s.secrets}
+	d := fileData{Secrets: s.secrets, Linked: s.linked}
 	for _, name := range s.namesLocked() {
 		d.Apps = append(d.Apps, *s.apps[name])
 	}
@@ -218,6 +225,11 @@ func (s *Store) Update(name string, ch Change) (App, int, error) {
 		}
 		configChanged := false
 		if ch.Config != nil {
+			for k := range ch.Config.Variables {
+				if src := s.linkedNameLocked(a.Name, k); src != "" {
+					return fieldErr("variables", "the %s gives the name %q: use a different name", src, k)
+				}
+			}
 			a.Config = ch.Config.clone()
 			configChanged = true
 		}
@@ -359,13 +371,17 @@ func (s *Store) Remove(name string) error {
 	if !ok {
 		return ErrNotFound
 	}
-	sec := s.secrets[name]
+	sec, lnk := s.secrets[name], s.linked[name]
 	delete(s.apps, name)
 	delete(s.secrets, name)
+	delete(s.linked, name)
 	if err := s.save(); err != nil {
 		s.apps[name] = cur
 		if sec != nil {
 			s.secrets[name] = sec
+		}
+		if lnk != nil {
+			s.linked[name] = lnk
 		}
 		return err
 	}
@@ -379,6 +395,110 @@ func (s *Store) Secrets(name string) map[string]string {
 	out := make(map[string]string, len(s.secrets[name]))
 	for k, v := range s.secrets[name] {
 		out[k] = v
+	}
+	for _, values := range s.linked[name] {
+		for k, v := range values {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+// linkedNameLocked gives the source of a linked secret name, or "".
+func (s *Store) linkedNameLocked(app, key string) string {
+	for src, values := range s.linked[app] {
+		if _, ok := values[key]; ok {
+			return src
+		}
+	}
+	return ""
+}
+
+// ErrNameInUse: a variable or a secret of the app has a name that a link
+// needs.
+var ErrNameInUse = errors.New("the app uses the name already")
+
+// UsedNames gives the names of the variables, the secrets and the linked
+// secrets of an app.
+func (s *Store) UsedNames(name string) map[string]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := map[string]string{}
+	if a, ok := s.apps[name]; ok {
+		for k := range a.Config.Variables {
+			out[k] = "variable"
+		}
+	}
+	for k := range s.secrets[name] {
+		out[k] = "secret"
+	}
+	for src, values := range s.linked[name] {
+		for k := range values {
+			out[k] = src
+		}
+	}
+	return out
+}
+
+// SetLinked gives the secrets of a source (for example "database shop-db")
+// to an app. The values replace the old values of the source. A name that
+// the app uses for an other purpose gives ErrNameInUse.
+func (s *Store) SetLinked(app, source string, values map[string]string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	a, ok := s.apps[app]
+	if !ok {
+		return ErrNotFound
+	}
+	for k := range values {
+		_, isVar := a.Config.Variables[k]
+		_, isSecret := s.secrets[app][k]
+		if src := s.linkedNameLocked(app, k); isVar || isSecret || (src != "" && src != source) {
+			return fmt.Errorf("%w: %s", ErrNameInUse, k)
+		}
+	}
+	old := s.linked[app][source]
+	if s.linked[app] == nil {
+		s.linked[app] = map[string]map[string]string{}
+	}
+	s.linked[app][source] = values
+	if err := s.save(); err != nil {
+		if old != nil {
+			s.linked[app][source] = old
+		} else {
+			delete(s.linked[app], source)
+		}
+		return err
+	}
+	return nil
+}
+
+// RemoveLinked removes the secrets of a source from an app.
+func (s *Store) RemoveLinked(app, source string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	old, ok := s.linked[app][source]
+	if !ok {
+		return nil
+	}
+	delete(s.linked[app], source)
+	if err := s.save(); err != nil {
+		s.linked[app][source] = old
+		return err
+	}
+	return nil
+}
+
+// LinkedNames gives the names of the linked secrets of an app, with their
+// source.
+func (s *Store) LinkedNames(name string) map[string]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := map[string]string{}
+	for src, values := range s.linked[name] {
+		for k := range values {
+			out[k] = src
+		}
 	}
 	return out
 }
@@ -409,6 +529,9 @@ func (s *Store) SetSecret(name, key, value string) error {
 	}
 	if _, isVar := a.Config.Variables[key]; isVar {
 		return fieldErr("name", "a variable has the name %q: use a different name, or remove the variable", key)
+	}
+	if src := s.linkedNameLocked(name, key); src != "" {
+		return fieldErr("name", "the %s gives the name %q: use a different name", src, key)
 	}
 	old, had := s.secrets[name][key]
 	if s.secrets[name] == nil {
