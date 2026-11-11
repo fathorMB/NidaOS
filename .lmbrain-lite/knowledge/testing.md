@@ -96,3 +96,10 @@ Then the test imports the app (`nida github import`), and for each run it uses i
 - no runner pod and no GitHub runner after the jobs.
 
 At the end, the test removes its app, its branches and the GitHub App from NidaOS. A run that stops leaves its branches; the next run removes the branches that are older than one day. The secrets are not in the artifact of the test.
+
+## The web console in the VM
+
+- QEMU forwards the port 443 of the VM to `127.0.0.1:8443` on the runner. The curl checks run in the VM with the NidaOS authority: the certificate of `https://nidaos.local`, the 401 of the API without a sign-in, the redirect from `http://`, and the `Secure` flag of the session cookie.
+- The workflow installs Playwright and Chromium in `console/` before the VM step. The VM test runs `npx playwright test` as the user of the runner (`sudo -u $SUDO_USER -H`), with `NIDA_URL=https://nidaos.local:8443` and `NIDA_RESOLVE=127.0.0.1`. The screenshots `console-*.png` go into the test results.
+- Without Playwright, the test writes a SKIP line for the browser test.
+- On the Windows computer, `node dev/mock.mjs 8480` in `console/` gives a fake API with sample data. The same Playwright tests run against it: `NIDA_URL=http://127.0.0.1:8480 npm run e2e`.

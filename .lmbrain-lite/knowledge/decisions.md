@@ -144,3 +144,19 @@ The operator selected this on 2026-11-11 for M-06. The browser opens the console
 ## D30 — The console pages of the gateway and the agents come with their milestones
 
 The operator selected this on 2026-11-11 for M-06. M-06 makes the runners page. M-10 makes the gateway page and M-09 makes the agents page, with their real data. The menu of the console shows a page only when its part of NidaOS exists. Reason: a page without data has no use, and its design can change when the part is built.
+
+## D31 — The updates page uses bootc through the API
+
+The lead selected this on 2026-11-11 for M-06. nida-core gives the system versions of bootc at `/api/v1/updates`, and starts `bootc upgrade --check`, `bootc upgrade`, `bootc rollback` and the restart. Only one operation runs at a time, and each operation needs the admin level. Reason: the console must not run commands on the computer, and bootc already does the update and the rollback in one step. M-11 can add the automatic checks and the signatures.
+
+## D32 — The installer is a web page in a kiosk browser
+
+The operator selected this on 2026-11-11 for M-07. A small Go program on the installation media measures the disks, makes the plan and runs the installation. The six steps of the mockup are a React page with the design tokens of the console. A minimal browser shows the page in full screen. Reason: the installer shares the parts and the style of the console, and Playwright tests it as the console. The owner can also follow the installation from the browser of an other computer in the home network.
+
+## D33 — The installer uses bootc install, without Anaconda
+
+The operator selected this on 2026-11-11 for M-07. The installer makes the partitions of the plan, then runs `bootc install to-filesystem`. Reason: the installation media becomes much smaller, and the two corrections of the proof (the temporary files and the graphical target) are not necessary. The VM test examines the partitions with different sets of disks.
+
+## D34 — One owner password at the installation
+
+The operator selected this on 2026-11-11 for M-07. The access step asks for one owner password of 12 characters or more, two times. The installer sets it as the owner password of nida-core (D16) and as the Remote Desktop password. The SSH key of the administrator stays: from the volume `NIDASEED`, or pasted. The owner can change the two passwords separately later.

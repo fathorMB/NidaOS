@@ -152,3 +152,11 @@ One line per action. Format: `timestamp | by:<who> | <target or -> | <kind> | <m
 2026-11-11T20:56 | by:lead | M-06 | decision | The operator selected https://nidaos.local for the console (D29) and moved the gateway and agents pages to M-10 and M-09 (D30); M-06 waits for the approval.
 2026-11-11T20:57 | by:operator | M-06 | status | proposed -> approved
 2026-11-11T20:57 | by:lead | M-06 | status | approved -> active: The operator approved M-06 with the decisions D29 and D30.
+2026-11-11T21:26 | by:lead | M-06 | commit | bcac228 adds the web console, the console route at https://nidaos.local and the updates API (D31); the unit tests and 7 browser tests against the fake API pass, and run 43095769410 examines it in the VM.
+2026-11-11T22:00 | by:operator | M-07 | status | proposed -> approved
+2026-11-11T22:00 | by:operator | M-08 | status | proposed -> approved
+2026-11-11T22:00 | by:operator | M-09 | status | proposed -> approved
+2026-11-11T22:00 | by:operator | M-10 | status | proposed -> approved
+2026-11-11T22:00 | by:operator | M-11 | status | proposed -> approved
+2026-11-11T22:00 | by:operator | M-12 | status | proposed -> approved
+2026-11-11T22:03 | by:lead | M-07 | decision | The operator selected a web page in a kiosk browser (D32), bootc install without Anaconda (D33) and one owner password (D34) for M-07.
