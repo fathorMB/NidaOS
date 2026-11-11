@@ -127,6 +127,23 @@
         "vm/**",
         ".github/**"
       ]
+    },
+    {
+      "id": "console",
+      "name": "Web console",
+      "description": "The React and Vite console, its fake API and its browser tests, and the server of its files in nida-core (M-06).",
+      "patterns": [
+        "console/**",
+        "core/internal/console/**"
+      ]
+    },
+    {
+      "id": "updates",
+      "name": "System updates",
+      "description": "The system versions of bootc and the update operations of the API (M-06).",
+      "patterns": [
+        "core/internal/updates/**"
+      ]
     }
   ],
   "categories": {
