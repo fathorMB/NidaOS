@@ -170,3 +170,7 @@ One line per action. Format: `timestamp | by:<who> | <target or -> | <kind> | <m
 2026-11-11T23:27 | by:lead | M-06/T-08 | task | done: The runners page shows the GitHub App with the setup and the import, the connected repositories, the jobs and the runner log. The gateway and agents pages go to M-10 and M-09 (D30). — Make the runners page with the GitHub App, the connected repositories and the jobs
 2026-11-11T23:27 | by:lead | M-06/T-09 | task | done: A stopped stream gives a red banner and the time of the last data. The unit tests and the VM browser test examine it. — Show clearly when the live stream stops, with the time of the last data
 2026-11-11T23:27 | by:lead | M-06/T-10 | task | done: Run 43105643515 passed 116 of 116 checks. The 7 Playwright tests passed in Chromium against the VM. The operator does the check from Windows on the real computer in M-12. — Test the console in the virtual machine with a browser on the Windows computer
+2026-11-11T23:27 | by:lead | M-06 | commit | 0ef1617 is the last code commit of M-06. Run 43105643515 passed all 116 checks of the VM test.
+2026-11-11T23:27 | by:lead | M-06 | status | active -> done: The ten tasks are complete, and run 43105643515 passed all 116 checks of the VM test with the browser test.
+2026-11-11T23:27 | by:lead | M-06 | code-snapshot | Code snapshot: 19803 production lines, 6199 test lines, 188 tests, 165 source files.
+2026-11-11T23:27 | by:lead | M-06 | code-note | Wrote the code notes: 6 steps.

@@ -14,7 +14,7 @@ generated: true
 | 3 | M-03 | App hosting from GitHub repositories | done | 9/9 | 100% |
 | 4 | M-04 | Managed databases | done | 10/10 | 100% |
 | 5 | M-05 | GitHub runners and the deploy flow | done | 9/9 | 100% |
-| 6 | M-06 | Web console | active | 10/10 | 100% |
+| 6 | M-06 | Web console | done | 10/10 | 100% |
 | 7 | M-07 | Installer with the disk planner | approved | 0/10 | 0% |
 | 8 | M-08 | Monitoring desktop | approved | 0/7 | 0% |
 | 9 | M-09 | Agent access | approved | 0/7 | 0% |
@@ -59,7 +59,7 @@ generated: true
 
 ## M-06 — Web console
 
-- `status`: active
+- `status`: done
 - `priority`: 6
 - `file`: milestones/M-06.md
 - `outcome`: The operator manages NidaOS from a browser in the home network. Each page shows the live metrics and the live logs.
