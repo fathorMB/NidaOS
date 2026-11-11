@@ -499,6 +499,14 @@ restored_on_18() {
         [ "$(server_sql shop-18 "SELECT tableowner FROM pg_tables WHERE tablename = 'proof'")" = shop_18_owner ] &&
         server_sql shop-18 'SHOW server_version' | grep -q '^18\.'
 }
+# update_offered: after the restart of the service, the database
+# controller must connect to k3s again before it accepts the update.
+update_offered() {
+    "${SSH[@]}" "sudo nida --json db show shop-db" | grep -q '"update_available": *"[^"]'
+}
+db_updated() {
+    nida_db "update shop-db --wait" > db-update.log 2>&1
+}
 minor_updated() {
     [ "$(server_sql shop-db 'SHOW server_version')" = 17.7 ] && [ "$(server_sql shop-db 'SELECT x FROM proof')" = 42 ]
 }
@@ -536,7 +544,8 @@ expect "the port of the home network refuses a connection without TLS" lan_plain
 expect "the live metrics show the database" retry 60 db_metrics
 expect "a backup on demand passes" nida_db "backup shop-db --wait"
 expect "the service gets the image PostgreSQL 17.7" set_db_images "17=docker.io/library/postgres:17.7-alpine,18=docker.io/library/postgres:18.1-alpine"
-expect "the minor update to 17.7 passes with a backup before it" nida_db "update shop-db --wait"
+expect "the database controller offers the update to 17.7" retry 120 update_offered
+expect "the minor update to 17.7 passes with a backup before it" db_updated
 expect "the server runs 17.7 and keeps the data" retry 30 minor_updated
 expect "the backup restores into a new PostgreSQL 18 database" restored_on_18
 expect "the disconnect removes the connection from the app" unlinked
@@ -549,7 +558,7 @@ expect "the disconnect removes the connection from the app" unlinked
     "${SSH[@]}" sudo nida db backups shop-db || true
     echo "## database objects"
     "${SSH[@]}" sudo k3s kubectl get all,pvc,networkpolicy -n nida-db-shop-db || true
-    cat db-restore.log db-plain.log db-not-linked.log db-lan-plain.log 2>/dev/null || true
+    cat db-update.log db-restore.log db-plain.log db-not-linked.log db-lan-plain.log 2>/dev/null || true
 } | tee -a report.txt
 expect "the remove of the databases deletes their namespaces" db_removed
 expect "the backups stay after the remove" backups_stay

@@ -108,7 +108,7 @@ jobs:
           # (knowledge/testing.md). Without them, the test skips the flow.
           NIDA_TEST_GITHUB_APP_ID: ${{ secrets.NIDA_TEST_GITHUB_APP_ID }}
           NIDA_TEST_GITHUB_APP_KEY: ${{ secrets.NIDA_TEST_GITHUB_APP_KEY }}
-          NIDA_TEST_GITHUB_REPO: ${{ vars.NIDA_TEST_GITHUB_REPO }}
+          NIDA_TEST_GITHUB_REPO: ${{ vars.NIDA_TEST_GITHUB_REPO || secrets.NIDA_TEST_GITHUB_REPO }}
         run: |
           ls -l /dev/kvm
           iso=$(sudo find out -name '*.iso' | head -n1)
