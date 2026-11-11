@@ -15,7 +15,7 @@ on:
         type: boolean
         default: false
   push:
-    branches: [main, "m01-*", "m02-*", "m03-*"]
+    branches: [main, "m01-*", "m02-*", "m03-*", "m04-*"]
     paths:
       - core/**
       - image/**

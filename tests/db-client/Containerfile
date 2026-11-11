@@ -1,0 +1,4 @@
+# An app without a port for the VM test of the databases (milestone M-04).
+# It has psql. The test runs SQL in it with "kubectl exec".
+FROM docker.io/library/postgres:18.1-alpine
+CMD ["sleep", "infinity"]

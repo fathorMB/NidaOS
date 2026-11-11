@@ -57,7 +57,7 @@ QEMU=(
     -device "ide-hd,drive=d1,bus=ide.1,rotation_rate=1"
     -drive "id=d2,if=none,format=qcow2,file=ssd-a.qcow2"
     -device "ide-hd,drive=d2,bus=ide.2,rotation_rate=1"
-    -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:3389-:3389,hostfwd=tcp:127.0.0.1:8470-:8470"
+    -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:3389-:3389,hostfwd=tcp:127.0.0.1:8470-:8470,hostfwd=tcp:127.0.0.1:15432-:15432"
     -device "virtio-net-pci,netdev=n0"
     -serial "file:serial.log"
     -monitor "unix:monitor.sock,server,nowait"
@@ -424,6 +424,136 @@ expect "the files of the folder stay after the move" retry 60 page_is hello /fir
 } | tee -a report.txt
 expect "the remove of an app deletes its namespace" app_removed
 expect "the other apps lose the internal name of the removed app" retry 60 alias_gone
+
+echo "==> Examine the managed databases (M-04)"
+# The database starts with PostgreSQL 17.6. Then the test gives the service
+# the image 17.7 (a minor update) and restores a backup into PostgreSQL 18
+# (the major update). The SQL goes to psql through stdin, thus ssh does not
+# change the quotes (knowledge/testing.md).
+CORE_ENV=/etc/sysconfig/nida-core
+set_db_images() {
+    printf 'NIDA_CORE_DB_IMAGES=%s\n' "$1" | "${SSH[@]}" "sudo tee $CORE_ENV > /dev/null" &&
+        "${SSH[@]}" sudo systemctl restart nida-core.service &&
+        retry 60 "${SSH[@]}" "sudo nida db list > /dev/null 2>&1"
+}
+nida_db() {
+    "${SSH[@]}" "sudo timeout 600 nida db $*"
+}
+# client_sql runs a shell script in the app dbclient.
+client_sql() {
+    "${SSH[@]}" "sudo k3s kubectl exec -i -n nida-app-dbclient deploy/app -- sh -s" <<< "$1"
+}
+server_sql() {
+    local db=$1 sql=$2
+    "${SSH[@]}" "sudo k3s kubectl exec -i -n nida-db-$db pg-0 -- psql -X -q -t -A -h /var/run/postgresql -U nida_admin -d ${db//-/_}" <<< "$sql"
+}
+db_client_app() {
+    "${SSH[@]}" "mkdir -p /tmp/dbclient && cat > /tmp/dbclient/Containerfile" < "$REPO/tests/db-client/Containerfile" &&
+        "${SSH[@]}" "cd /tmp/dbclient && sudo podman build -q -t $REG/dbclient:1 . && sudo podman push -q --tls-verify=false $REG/dbclient:1" > db-client-image.log 2>&1 &&
+        nida_app add dbclient > /dev/null &&
+        nida_app "deploy dbclient $REG/dbclient:1 --wait" > /dev/null
+}
+not_linked_refused() {
+    # Before the link, the network policy drops the packets of the app: the
+    # connection stops at the time limit, before the password check.
+    ! client_sql 'PGCONNECT_TIMEOUT=5 psql "postgresql://x:y@pg.nida-db-shop-db.svc.cluster.local:5432/shop_db?sslmode=require" -c "SELECT 1"' > db-not-linked.log 2>&1 &&
+        grep -q 'timeout' db-not-linked.log && ! grep -q 'password' db-not-linked.log
+}
+app_writes() {
+    client_sql 'psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -c "CREATE TABLE IF NOT EXISTS proof (x int); INSERT INTO proof VALUES (42);"'
+}
+plain_refused() {
+    # The same connection without TLS: the server refuses it.
+    ! client_sql 'psql "postgresql://$PGUSER:$PGPASSWORD@$PGHOST:$PGPORT/$PGDATABASE?sslmode=disable" -c "SELECT 1"' > db-plain.log 2>&1 &&
+        grep -Eq 'pg_hba.conf|SSL' db-plain.log
+}
+# The runner is a device of the home network: QEMU forwards its port 15432
+# to the VM. psql of the runner uses the name nidaos.local and the NidaOS
+# authority (sslmode=verify-full).
+lan_conn() {
+    local pw
+    pw=$("${SSH[@]}" "sudo nida --json db connection shop-db" | grep -o '"password": "[0-9a-f]*"' | grep -o '[0-9a-f]\{32\}')
+    [ -n "$pw" ] && echo "host=nidaos.local hostaddr=127.0.0.1 port=15432 dbname=shop_db user=shop_db_owner password=$pw connect_timeout=10"
+}
+lan_verify_full() {
+    local conn
+    conn=$(lan_conn) && "${SSH[@]}" "sudo nida ca" > nida-ca.crt &&
+        [ "$(psql "$conn sslmode=verify-full sslrootcert=$PWD/nida-ca.crt" -X -t -A -c 'SELECT x FROM proof')" = 42 ]
+}
+lan_plain_refused() {
+    local conn
+    conn=$(lan_conn) && ! psql "$conn sslmode=disable" -X -c 'SELECT 1' > db-lan-plain.log 2>&1
+}
+db_metrics() {
+    "${SSH[@]}" "sudo nida --json metrics" | tr -d ' \n' | grep -q '"databases":\[{"name":"shop-db","state":"ready"'
+}
+backup_name() {
+    "${SSH[@]}" "sudo nida --json db backups shop-db" | grep -o '"name": "[^"]*-manual-pg17.dump"' | head -n 1 | cut -d'"' -f4
+}
+restored_on_18() {
+    local b
+    b=$(backup_name)
+    [ -n "$b" ] && nida_db "add shop-18 --version 18 --tier standard --restore shop-db/$b --wait" > db-restore.log 2>&1 &&
+        [ "$(server_sql shop-18 'SELECT x FROM proof')" = 42 ] &&
+        [ "$(server_sql shop-18 "SELECT tableowner FROM pg_tables WHERE tablename = 'proof'")" = shop_18_owner ] &&
+        server_sql shop-18 'SHOW server_version' | grep -q '^18\.'
+}
+minor_updated() {
+    [ "$(server_sql shop-db 'SHOW server_version')" = 17.7 ] && [ "$(server_sql shop-db 'SELECT x FROM proof')" = 42 ]
+}
+runs_as_70() {
+    [ "$("${SSH[@]}" "sudo k3s kubectl exec -n nida-db-shop-db pg-0 -- id -u")" = 70 ]
+}
+client_without_url() {
+    [ -z "$(client_sql 'echo $DATABASE_URL')" ]
+}
+unlinked() {
+    nida_db "unlink shop-db dbclient" > /dev/null && retry 120 client_without_url
+}
+db_removed() {
+    nida_db "remove shop-db --yes" > /dev/null && nida_db "remove shop-18 --yes" > /dev/null &&
+        retry 120 namespace_gone nida-db-shop-db && retry 120 namespace_gone nida-db-shop-18
+}
+backups_stay() {
+    [ -n "$(backup_name)" ]
+}
+
+expect "the service gets the image PostgreSQL 17.6" set_db_images "17=docker.io/library/postgres:17.6-alpine,18=docker.io/library/postgres:18.1-alpine"
+expect "the owner adds a PostgreSQL 17 database on the performance tier" nida_db "add shop-db --version 17 --tier performance --wait"
+expect "the server of the database runs as the user 70" runs_as_70
+expect "the data of the database are on the performance disk" \
+    "${SSH[@]}" "sudo sh -c 'ls -d /var/nida/performance/volumes/*nida-db-shop-db_data-pg-0* > /dev/null'"
+expect "an app without a port starts as the database client" db_client_app
+expect "an app that is not connected cannot open the port of the database" retry 30 not_linked_refused
+expect "the owner connects the app to the database" nida_db "link shop-db dbclient"
+expect "the app writes in the database with DATABASE_URL" retry 120 app_writes
+expect "the database refuses a connection without TLS" plain_refused
+expect "the owner opens the database to the home network" nida_db "lan shop-db on"
+command -v psql > /dev/null || apt-get install -y -qq postgresql-client > /dev/null 2>&1 || true
+expect "a device of the home network connects with verify-full and the NidaOS authority" retry 60 lan_verify_full
+expect "the port of the home network refuses a connection without TLS" lan_plain_refused
+expect "the live metrics show the database" retry 60 db_metrics
+expect "a backup on demand passes" nida_db "backup shop-db --wait"
+expect "the service gets the image PostgreSQL 17.7" set_db_images "17=docker.io/library/postgres:17.7-alpine,18=docker.io/library/postgres:18.1-alpine"
+expect "the minor update to 17.7 passes with a backup before it" nida_db "update shop-db --wait"
+expect "the server runs 17.7 and keeps the data" retry 30 minor_updated
+expect "the backup restores into a new PostgreSQL 18 database" restored_on_18
+expect "the disconnect removes the connection from the app" unlinked
+{
+    echo "## nida db list"
+    "${SSH[@]}" sudo nida db list || true
+    echo "## nida db show shop-db"
+    "${SSH[@]}" sudo nida db show shop-db || true
+    echo "## nida db backups shop-db"
+    "${SSH[@]}" sudo nida db backups shop-db || true
+    echo "## database objects"
+    "${SSH[@]}" sudo k3s kubectl get all,pvc,networkpolicy -n nida-db-shop-db || true
+    cat db-restore.log db-plain.log db-not-linked.log db-lan-plain.log 2>/dev/null || true
+} | tee -a report.txt
+expect "the remove of the databases deletes their namespaces" db_removed
+expect "the backups stay after the remove" backups_stay
+"${SSH[@]}" "sudo rm -f $CORE_ENV && sudo systemctl restart nida-core.service" || true
+nida_app "remove dbclient --yes" > /dev/null || true
 
 echo "==> Examine the desktop and the RDP service"
 rdp_password=$(head -c 18 /dev/urandom | base64 | tr -d '/+=')
