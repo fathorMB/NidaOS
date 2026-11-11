@@ -118,7 +118,8 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 
 	// The app hosting (milestone M-03). The controller starts when k3s is
 	// ready.
-	appsDone, dbsDone := make(chan struct{}), make(chan struct{})
+	appsDone, dbsDone, runnersDone := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	var runnerPart *runnerPart
 	var hosting *httpserver.AppHosting
 	var dbHosting *httpserver.DatabaseHosting
 	var certs httpserver.CertSource
@@ -147,6 +148,8 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 			// The managed databases (milestone M-04) need the app hosting
 			// for the links and the authority for the certificate.
 			dbHosting = startDatabases(ctx, cfg, appStore, runner, opts.TLS, sampler, dbsDone, logger)
+			// The GitHub runners and the deploy flow (milestone M-05).
+			runnerPart = startRunners(ctx, cfg, appStore, runnersDone, logger)
 			// The names of the apps on the home network (D19).
 			if cfg.MDNS {
 				responder := &mdns.Responder{Names: func() []string { return appNames(appStore, cfg.AppsDomain) }, Logger: logger}
@@ -162,6 +165,9 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 	}
 	if dbHosting == nil {
 		close(dbsDone)
+	}
+	if runnerPart == nil {
+		close(runnersDone)
 	}
 	go sampler.Run(ctx)
 
@@ -179,6 +185,9 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 	}
 	if certs != nil {
 		deps.Authority = certs
+	}
+	if runnerPart != nil {
+		deps.Runners = runnerPart.hosting
 	}
 
 	// The log store. Without it, the service keeps the logs only in memory.
@@ -224,9 +233,13 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 		<-storeDone
 		<-appsDone
 		<-dbsDone
+		<-runnersDone
 	}()
 
 	router := httpserver.NewRouter(deps)
+	if runnerPart != nil {
+		go runnerPart.serveJobs(ctx, router, logger)
+	}
 	newServer := func(h http.Handler) *http.Server {
 		return &http.Server{
 			Handler:           h,

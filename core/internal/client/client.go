@@ -125,7 +125,7 @@ func (c *Client) Raw(ctx context.Context, path string) ([]byte, error) {
 	if resp.StatusCode >= 300 {
 		return nil, readError(resp)
 	}
-	return io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	return io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 }
 
 // Get is Do with GET.

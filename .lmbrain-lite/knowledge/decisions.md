@@ -120,3 +120,15 @@ The lead selected this on 2026-11-11 for M-04, from GitStack `docs/adr/0003-data
 - The core service uses a superuser only through the local socket in the container. Each connected app gets its own login role, thus the disconnect of one app does not stop the other apps.
 - The database accepts only TLS connections with a password, also from the apps. The network policy of the database accepts only the connected apps. The apps use `sslmode=require`: the certificate is for `nidaos.local`, thus an app cannot examine the name. The switch for the home network opens a port from 15432 to 15531 on the computer. A device of the home network uses `sslmode=verify-full` with the NidaOS authority (D20) and the host `nidaos.local`. Reason: k3s can show a connection from the home network with an address of the pod network, thus a rule "plain text only from the pods" is not safe.
 - The backups are `pg_dump` files in `/var/nida/standard/backups` (the standard tier), mode 0600. NidaOS makes one each day at 03:00 and keeps the last 7. It also keeps the last 5 backups on demand. M-11 adds the encryption and a copy to an other computer.
+
+## D25 — NidaOS uses its own GitHub App
+
+The operator selected an own GitHub App on 2026-11-11 for M-05. The core service makes the app with the manifest flow of GitHub: the owner clicks one time in the browser and selects the repositories. The core service keeps the private key of the app in `/var/lib/nidaos` with the mode 0600. It makes installation tokens that are valid for one hour, only when it needs them. Reason: no personal token of the owner stays on the computer, and the access is only to the selected repositories.
+
+## D26 — Each job runs in a new runner pod and BuildKit builds without root
+
+The operator selected this on 2026-11-11 for M-05. Each job gets a new runner pod in k3s with a just-in-time registration, and the pod stops after the job. Rootless BuildKit in the pod builds the image without root and without privileges, and pushes it to the local registry (D21). The pod has CPU and memory limits. Reason: the code of a workflow comes from GitHub, thus it must not get control of the computer, and one job must not leave files for the next job.
+
+## D27 — Runners only for private repositories
+
+The operator selected this on 2026-11-11 for M-05. NidaOS connects a runner only to a private repository. Reason: in a public repository, a stranger can open a pull request that changes the workflow and runs code on the runner. GitHub gives the same advice for self-hosted runners.

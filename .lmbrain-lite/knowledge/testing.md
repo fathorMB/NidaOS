@@ -75,3 +75,24 @@ The full cycle also examines the databases (milestone M-04). The test gives the 
 - the disconnect, the remove, and the backups that stay.
 
 Rule: send SQL and scripts to a pod through stdin (`kubectl exec -i ... -- sh -s <<< "$script"`). Thus ssh does not change the quotes.
+
+## The GitHub runners in the VM
+
+The full cycle also examines the deploy flow (milestone M-05). Without GitHub, the test examines the job endpoint: it refuses a request without a job token, it gives the `nida` command, and the runner namespace has its network policy.
+
+The flow from a push to an app in operation needs a real GitHub App and a real private repository. The operator makes them one time:
+
+1. Make a private repository, for example `<owner>/nidaos-ci`, with a README. The test adds the other files.
+2. Make a GitHub App on the GitHub account (Settings, Developer settings, GitHub Apps, New GitHub App). Turn off the webhook. Give the repository permissions: Administration "Read and write", Actions "Read-only", Contents "Read and write", Pull requests "Read and write", Workflows "Read and write". Metadata is "Read-only" automatically.
+3. Make a private key of the app, and install the app only on the test repository.
+4. In the NidaOS repository on GitHub (Settings, Secrets and variables, Actions), add the secrets `NIDA_TEST_GITHUB_APP_ID` (the App ID) and `NIDA_TEST_GITHUB_APP_KEY` (all the text of the `.pem` file), and the variable `NIDA_TEST_GITHUB_REPO` (`<owner>/nidaos-ci`).
+
+Then the test imports the app (`nida github import`), and for each run it uses its own app `ci-<run>` and its own branch `nidaos-test-<run>`. It examines:
+
+- the connection to the private repository and the pull request with the deploy workflow;
+- the merge, which starts a job on a new runner pod that is not privileged;
+- the build with rootless BuildKit, the deploy of the image of the commit, and the page of the app at its https address;
+- the log of the job, and a second push that gives version 2;
+- no runner pod and no GitHub runner after the jobs.
+
+At the end, the test removes its app, its branches and the GitHub App from NidaOS. A run that stops leaves its branches; the next run removes the branches that are older than one day. The secrets are not in the artifact of the test.

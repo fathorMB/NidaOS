@@ -126,3 +126,8 @@ One line per action. Format: `timestamp | by:<who> | <target or -> | <kind> | <m
 2026-11-11T13:31 | by:lead | M-04 | status | active -> done: The ten tasks are complete, and run 43015707299 passed all the checks of the VM test.
 2026-11-11T13:31 | by:lead | M-04 | code-snapshot | Code snapshot: 11535 production lines, 4644 test lines, 135 tests, 111 source files.
 2026-11-11T13:31 | by:lead | M-04 | code-note | Wrote the code notes: 5 steps.
+2026-11-11T14:59 | by:lead | M-04 | note | The lead opened the pull request 3 of the branch m04-databases to main.
+2026-11-11T15:09 | by:operator | M-05 | status | proposed -> approved
+2026-11-11T15:12 | by:lead | M-05 | status | approved -> active: The operator approved M-05 and selected an own GitHub App (D25), a new runner pod for each job with rootless BuildKit (D26), and private repositories only (D27).
+2026-11-11T15:14 | by:lead | M-05/T-08 | task | added 'Make the GitHub App of NidaOS with the manifest flow, and import an app for the tests'
+2026-11-11T15:14 | by:lead | M-05/T-09 | task | added 'Give the runner pods a job endpoint for the registry and the deploy, with a token for one job'

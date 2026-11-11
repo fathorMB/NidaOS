@@ -72,6 +72,12 @@ func accessOf(req *http.Request) access {
 	case p == "/api/v1/ca.crt":
 		// The certificate of the authority is public data (decision D20).
 		return accessPublic
+	case strings.HasPrefix(p, "/api/v1/github/setup/") || p == "/api/v1/github/callback":
+		// The key of the setup is the access: the browser of the owner has
+		// no session before the web console (M-06).
+		return accessPublic
+	case p == "/api/v1/github/import":
+		return accessAdmin
 	case p == "/api/v1/auth/logout" || p == "/api/v1/auth/me":
 		return accessAny
 	case p == "/api/v1/tokens" || strings.HasPrefix(p, "/api/v1/tokens/") || p == "/api/v1/auth/password":

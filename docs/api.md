@@ -112,6 +112,14 @@ Each error has this body:
 | 409 | `no_port`, `no_update`, `sessions_remain` | No free port for the home network, no newer minor version, or open sessions of the app. |
 | 503 | `databases_not_ready` | k3s is not ready. Try again after some seconds. |
 | 500 | `database_failed` | An internal problem of a database operation. |
+| 404 | `repository_not_connected`, `job_not_found`, `log_not_available` | The app has no repository, the job does not exist, or its log is not there yet. |
+| 404 | `setup_expired` | The key of the setup of the GitHub App is not valid or is too old. |
+| 404 | `github_not_found` | GitHub does not have the object. |
+| 409 | `github_not_configured`, `github_not_installed` | NidaOS has no GitHub App, or the app is not installed on the repository. |
+| 409 | `repository_public` | The repository is public (decision D27). |
+| 409 | `repository_connected`, `repository_in_use` | The app has a repository already, or an other app uses the repository. |
+| 502 | `github_error`, `github_unavailable` | GitHub gave an error, or GitHub is not available. |
+| 401 | `job_token_required` | The job endpoint (section 4.11.6) got no valid job token. |
 
 ## 4. The paths
 
@@ -129,6 +137,7 @@ Each error has this body:
 | `/api/v1/apps`, `/api/v1/apps/{name}/...` | 4.8 |
 | `GET /api/v1/ca.crt`, `GET /api/v1/ca` | 4.9 |
 | `/api/v1/databases`, `/api/v1/databases/{name}/...` | 4.10 |
+| `/api/v1/github/...`, `GET /api/v1/runners`, `/api/v1/apps/{name}/repository`, `/api/v1/apps/{name}/jobs`, `/api/v1/jobs/{id}` | 4.11 |
 
 ### 4.1 Health
 
@@ -638,6 +647,139 @@ The client must have the certificate of the NidaOS authority (section 4.9) as it
 #### 4.10.6 Update the minor version
 
 `POST .../update` starts when `update_available` is set. NidaOS makes an `update` backup first, and stops when the backup fails. Then it changes the image. When the server does not start with the new image, the old image comes back and `reason` tells why.
+
+### 4.11 GitHub runners and the deploy flow (milestone M-05)
+
+A push to a connected GitHub repository builds the app on the NidaOS computer and deploys it. The source stays on GitHub (decisions D25, D26 and D27):
+
+- NidaOS uses its own GitHub App. The app has no webhook: NidaOS reads the queued jobs from GitHub each 15 seconds, and it opens no port to the internet.
+- For each queued job with the label `nidaos-<app>`, NidaOS starts a new runner pod with a registration for one job. The pod builds the image with rootless BuildKit, pushes it to the local registry through the job endpoint (section 4.11.6), deploys it and stops.
+- NidaOS connects only private repositories. When a connected repository becomes public, NidaOS starts no more pods for it.
+
+| Method and path | Access | Result |
+| --- | --- | --- |
+| `GET /api/v1/github` | `read` | The GitHub App (section 4.11.1). It never has the private key. |
+| `POST /api/v1/github/setup` | `admin` | `201` and `{"url": "...", "expires": "..."}`. Body (optional): `{"organization": "my-org"}`. Open `url` in a browser (section 4.11.2). |
+| `GET /api/v1/github/setup/{key}` | the key | The page that sends the manifest of the app to GitHub. |
+| `GET /api/v1/github/callback` | the key | GitHub sends the browser to it. `302` to the installation page of the app. |
+| `POST /api/v1/github/import` | `admin` | `200` and the GitHub App. Body: `{"app_id": 123, "private_key": "-----BEGIN RSA PRIVATE KEY-----..."}`. NidaOS uses an app that exists already, for example the app of the tests. |
+| `DELETE /api/v1/github` | `admin` | `204`. Disconnect all the apps first. |
+| `GET /api/v1/runners` | `read` | `{"github": GitHubApp, "connections": [Connection, ...], "active": [Job, ...]}`. `active` has the jobs that wait or run now. |
+| `GET /api/v1/apps/{name}/repository` | `read` | The Connection of the app (section 4.11.3). |
+| `PUT /api/v1/apps/{name}/repository` | `admin` | `201` and `{"connection": Connection}`. Body: `{"repository": "me/shop", "branch": "main", "no_pull_request": false}` (section 4.11.3). |
+| `DELETE /api/v1/apps/{name}/repository` | `admin` | `204`. NidaOS stops the pods of the app. The workflow stays in the repository. |
+| `POST /api/v1/apps/{name}/repository/pull-request` | `admin` | `200` and the Connection. NidaOS opens the pull request with the workflow again, or updates it. |
+| `GET /api/v1/apps/{name}/jobs` | `read` | `{"jobs": [Job, ...]}`, the newest first. NidaOS keeps the last 20 jobs of each app. |
+| `GET /api/v1/jobs/{id}` | `read` | One Job. `id` is the ID of the job on GitHub. |
+| `GET /api/v1/jobs/{id}/log` | `read` | The log of the job as text (`text/plain`), a maximum of 5 MiB. NidaOS gets it from GitHub at the end of the job. |
+
+The remove of an app also removes its Connection.
+
+#### 4.11.1 The GitHub App object
+
+```json
+{
+  "configured": true,
+  "id": 1234567,
+  "slug": "nidaos-nidaos-1a2b3c",
+  "name": "NidaOS nidaos 1a2b3c",
+  "owner": "me",
+  "html_url": "https://github.com/apps/nidaos-nidaos-1a2b3c",
+  "install_url": "https://github.com/apps/nidaos-nidaos-1a2b3c/installations/new"
+}
+```
+
+Without an app, the body is `{"configured": false}`.
+
+#### 4.11.2 Make the GitHub App
+
+1. `POST /api/v1/github/setup` gives the address of a setup page. The address has a key that is valid for 30 minutes. The page needs no sign-in: the key is the access.
+2. The owner opens the page in a browser of the home network and clicks "Continue on GitHub". GitHub makes the app from the manifest of NidaOS. The app has these permissions: `administration: write` (the runner registrations), `actions: read` (the queued jobs and their logs), `contents: write`, `workflows: write` and `pull_requests: write` (the pull request with the workflow), and `metadata: read`.
+3. GitHub sends the browser back to `GET /api/v1/github/callback`. NidaOS keeps the app and its private key in `/var/lib/nidaos/runners.json` (mode 0600), then sends the browser to the installation page.
+4. The owner installs the app on the private repositories of the apps.
+
+NidaOS uses the address of `NIDA_CORE_PUBLIC_URL` (default `http://nidaos.local:8470`) in the manifest: the browser must get to it.
+
+#### 4.11.3 The Connection object
+
+```json
+{
+  "app": "shop",
+  "owner": "me",
+  "repo": "shop",
+  "branch": "main",
+  "created": "2026-11-11T10:00:00Z",
+  "pull_request": "https://github.com/me/shop/pull/1",
+  "problem": ""
+}
+```
+
+- `PUT .../repository` examines the repository on GitHub: the app must be installed on it (else `409 github_not_installed`), and it must be private (else `409 repository_public`). `branch` is the default branch of the repository when the body has no branch.
+- Then NidaOS opens a pull request from the branch `nidaos/deploy-<app>` that adds `.github/workflows/nidaos-deploy-<app>.yml`. When the pull request fails, the connection stays, and the body has `"warning"` with the cause.
+- `problem` is the last error of NidaOS for this repository, for example a repository that became public. It is empty when the reads pass.
+
+The workflow runs on `push` to the branch, and on demand. It has one job:
+
+```yaml
+jobs:
+  deploy:
+    runs-on: [self-hosted, nidaos, nidaos-shop]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build and deploy on NidaOS
+        run: nida app deploy shop --build . --wait
+```
+
+`nida app deploy NAME --build DIR` uses the `Containerfile`, or else the `Dockerfile`, of `DIR`. The tag of the image is the first 12 characters of the commit.
+
+#### 4.11.4 The Job object
+
+```json
+{
+  "id": 55500011122,
+  "app": "shop",
+  "run_id": 1900000001,
+  "name": "deploy",
+  "sha": "0123456789abcdef0123456789abcdef01234567",
+  "url": "https://github.com/me/shop/actions/runs/1900000001/job/55500011122",
+  "state": "succeeded",
+  "pod": "run-shop-1a2b3c",
+  "runner": "run-shop-1a2b3c",
+  "created": "2026-11-11T10:00:00Z",
+  "started": "2026-11-11T10:00:20Z",
+  "finished": "2026-11-11T10:02:10Z",
+  "message": "",
+  "has_log": true
+}
+```
+
+| `state` | Meaning |
+| --- | --- |
+| `queued` | A runner pod waits for the job. |
+| `running` | The runner runs the job. |
+| `succeeded` | The job passed on GitHub. |
+| `failed` | The job failed on GitHub, or the pod failed 3 times. `message` gives the cause. |
+| `cancelled` | The job was cancelled on GitHub, or the repository was disconnected. |
+
+#### 4.11.5 The runner pods
+
+- The pods are in the namespace `nida-runners`. A network policy stops each connection that comes in. A pod can open only DNS, the job endpoint and addresses on the internet: not the apps, the databases and the home network.
+- The pod has the GitHub runner (`ghcr.io/actions/actions-runner`, the last release; `NIDA_CORE_RUNNER_VERSION` fixes it) and rootless BuildKit (`NIDA_CORE_BUILDKIT_IMAGE`) as the user 1000. No container is privileged. The pod has a maximum of 2 CPU cores, 4 GiB of memory, and 2 hours.
+- The pod has the variables `NIDA_SERVER`, `NIDA_TOKEN` (the job token), `NIDA_APP`, `NIDA_REGISTRY` and `BUILDKIT_HOST`, and the commands `nida` and `buildctl` in the `PATH`.
+
+#### 4.11.6 The job endpoint
+
+The job endpoint is a second HTTP server of nida-core on the bridge of the pod network (`NIDA_CORE_JOB_ADDR`, default `10.42.0.1:8471`). Only the runner pods get to it. Each request needs the job token of the pod, as a bearer token or as the password of the basic authentication. The token is valid only while its pod runs, and only for its app:
+
+| Method and path | Result |
+| --- | --- |
+| `GET /tools/nida` | The `nida` command. It needs no token. |
+| `/v2/`, `/v2/{app}/blobs/...`, `/v2/{app}/manifests/...`, `/v2/{app}/tags/...` | The local registry, only for the image of the app of the token. |
+| `POST /api/v1/apps/{app}/deploys` | A deploy (section 4.8.4), only of the image `localhost:5000/{app}:...`. |
+| `GET /api/v1/apps/{app}` | The App, for `--wait`. |
+
+Each other request gives `403 forbidden`. A request without a valid token gives `401 job_token_required`, with `WWW-Authenticate: Basic realm="nidaos"` for the registry paths.
 
 ## 5. The live streams
 

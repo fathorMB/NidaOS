@@ -23,6 +23,12 @@ const appUsage = `use one of:
   app add NAME [--repo OWNER/NAME] [--branch B] [--port N] [--health PATH] [--copies N]
                [--env K=V]... [--folder NAME:PATH:TIER:SIZE]... [--cpu MILLIS] [--memory SIZE]
   app deploy NAME IMAGE [--commit SHA] [--summary TEXT] [--wait]
+  app deploy NAME --build DIR [--commit SHA] [--summary TEXT] [--wait]   (in a runner pod)
+  app connect NAME OWNER/REPO [--branch B] [--no-pr]
+  app disconnect NAME
+  app workflow NAME   (open the pull request with the deploy workflow again)
+  app jobs NAME
+  app job-log JOB
   app rollback NAME VERSION [--wait]
   app set NAME [--port N | --no-port] [--health PATH | --no-health] [--env K=V]... [--unset K]...
                [--copies N] [--folder ...]... [--repo R] [--branch B] [--cpu M] [--memory S] [--wait]
@@ -72,6 +78,16 @@ func (a *app) apps(ctx context.Context, args []string) error {
 		return a.appAdd(ctx, rest)
 	case "deploy":
 		return a.appDeploy(ctx, rest)
+	case "connect":
+		return a.appConnect(ctx, rest)
+	case "disconnect":
+		return a.appDisconnect(ctx, rest)
+	case "workflow":
+		return a.appWorkflow(ctx, rest)
+	case "jobs":
+		return a.appJobs(ctx, rest)
+	case "job-log":
+		return a.appJobLog(ctx, rest)
 	case "rollback":
 		return a.appRollback(ctx, rest)
 	case "set":
@@ -416,12 +432,16 @@ func (a *app) appDeploy(ctx context.Context, args []string) error {
 	commit := fs.String("commit", "", "")
 	summary := fs.String("summary", "", "")
 	wait := fs.Bool("wait", false, "")
+	build := fs.String("build", "", "")
 	rest, err := parseFlags(fs, args)
 	if err != nil {
 		return err
 	}
-	if len(rest) != 2 {
-		return fmt.Errorf("%w: use app deploy NAME IMAGE [--commit SHA] [--summary TEXT] [--wait]", errUsage)
+	if *build != "" && len(rest) == 1 {
+		return a.buildDeploy(ctx, rest[0], *build, *commit, *summary, *wait)
+	}
+	if len(rest) != 2 || *build != "" {
+		return fmt.Errorf("%w: use app deploy NAME IMAGE [--commit SHA] [--summary TEXT] [--wait], or app deploy NAME --build DIR", errUsage)
 	}
 	var v apps.Version
 	if err := a.c.Do(ctx, http.MethodPost, appPath(rest[0], "deploys"), map[string]string{"image": rest[1], "commit": *commit, "summary": *summary}, &v); err != nil {

@@ -6,6 +6,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -102,6 +103,33 @@ type Config struct {
 	// DatabaseImages gives the image of each PostgreSQL major version
 	// (decision D23).
 	DatabaseImages map[int]string
+
+	// RunnersFile keeps the GitHub App, the connected repositories and the
+	// deploy jobs (milestone M-05). It is empty when the value is "off":
+	// then the service has no GitHub runners.
+	RunnersFile string
+
+	// JobAddr is the job endpoint for the runner pods (T-09). It is the
+	// address of the computer on the pod network of k3s.
+	JobAddr string
+
+	// PublicURL is the address of nida-core in the browser of the owner.
+	// GitHub sends the browser back to it at the end of the setup.
+	PublicURL string
+
+	// GitHubAPI and GitHubWeb are the addresses of GitHub.
+	GitHubAPI string
+	GitHubWeb string
+
+	// RunnerVersion fixes the version of the GitHub runner. Empty: the
+	// service uses the last release.
+	RunnerVersion string
+
+	// BuildKitImage is the rootless BuildKit image (decision D26).
+	BuildKitImage string
+
+	// NidaBinary is the nida command that the runner pods get.
+	NidaBinary string
 }
 
 // Defaults of the configuration.
@@ -129,6 +157,12 @@ const (
 	DefaultCADir          = "/var/lib/nidaos/ca"
 	DefaultDatabasesFile  = "/var/lib/nidaos/databases.json"
 	DefaultBackupDir      = "/var/nida/standard/backups"
+	DefaultRunnersFile    = "/var/lib/nidaos/runners.json"
+	// DefaultJobAddr is the first address of the pod network of k3s: the
+	// bridge cni0 of the computer.
+	DefaultJobAddr    = "10.42.0.1:8471"
+	DefaultPublicURL  = "http://nidaos.local:8470"
+	DefaultNidaBinary = "/usr/bin/nida"
 	// DefaultDatabaseImages are the PostgreSQL images (decision D23).
 	DefaultDatabaseImages = "17=docker.io/library/postgres:17.7-alpine,18=docker.io/library/postgres:18.1-alpine"
 )
@@ -168,6 +202,10 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 		MDNS:            true,
 		DatabasesFile:   DefaultDatabasesFile,
 		BackupDir:       DefaultBackupDir,
+		RunnersFile:     DefaultRunnersFile,
+		JobAddr:         DefaultJobAddr,
+		PublicURL:       DefaultPublicURL,
+		NidaBinary:      DefaultNidaBinary,
 	}
 	images := DefaultDatabaseImages
 	if v := strings.TrimSpace(getenv(Prefix + "DB_IMAGES")); v != "" {
@@ -299,6 +337,29 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 	}
 	if v := strings.TrimSpace(getenv(Prefix + "DB_BACKUP_DIR")); v != "" {
 		cfg.BackupDir = v
+	}
+	if v := strings.TrimSpace(getenv(Prefix + "RUNNERS_FILE")); v != "" {
+		if v == "off" {
+			cfg.RunnersFile = ""
+		} else {
+			cfg.RunnersFile = v
+		}
+	}
+	if v := strings.TrimSpace(getenv(Prefix + "JOB_ADDR")); v != "" {
+		if _, _, err := net.SplitHostPort(v); err != nil {
+			return Config{}, fmt.Errorf("%sJOB_ADDR: %w", Prefix, err)
+		}
+		cfg.JobAddr = v
+	}
+	if v := strings.TrimSpace(getenv(Prefix + "PUBLIC_URL")); v != "" {
+		cfg.PublicURL = strings.TrimSuffix(v, "/")
+	}
+	cfg.GitHubAPI = strings.TrimSpace(getenv(Prefix + "GITHUB_API"))
+	cfg.GitHubWeb = strings.TrimSpace(getenv(Prefix + "GITHUB_WEB"))
+	cfg.RunnerVersion = strings.TrimPrefix(strings.TrimSpace(getenv(Prefix+"RUNNER_VERSION")), "v")
+	cfg.BuildKitImage = strings.TrimSpace(getenv(Prefix + "BUILDKIT_IMAGE"))
+	if v := strings.TrimSpace(getenv(Prefix + "NIDA_BINARY")); v != "" {
+		cfg.NidaBinary = v
 	}
 
 	return cfg, nil

@@ -12,6 +12,8 @@
 //	nida app list | show | add | deploy | rollback | set | secret | move | restart | remove
 //	nida ca [--fingerprint]
 //	nida db list | show | add | link | unlink | lan | connection | backup | backups | update | remove
+//	nida github [setup | import | remove]
+//	nida runners
 //	nida version
 //
 // Each command accepts --json: the output is the JSON of the API, for
@@ -50,6 +52,10 @@ Commands:
   app show NAME           one app, with its versions
   app add NAME            add an app (--port, --health, --env, --folder, ...)
   app deploy NAME IMAGE   deploy an image of the local registry (--wait)
+  app deploy NAME --build DIR   build and deploy, in a runner pod of NidaOS (--wait)
+  app connect NAME O/R    connect a private GitHub repository (a pull request adds the workflow)
+  app disconnect NAME     remove the connection to the repository
+  app jobs NAME           the deploy jobs; app job-log JOB gives the log of one job
   app rollback NAME N     go back to the version N (--wait)
   app set NAME            change the settings (--port, --env, --copies, ...)
   app secret set NAME KEY add or replace a secret (the value from stdin)
@@ -63,6 +69,8 @@ Commands:
   db backup NAME          make a backup now (--wait); db backups NAME lists them
   db update NAME          the newest minor version, with a backup first (--wait)
   db remove NAME --yes    remove a database and its data (the backups stay)
+  github                  the GitHub App of NidaOS; github setup makes it
+  runners                 the connected repositories and the jobs that run now
   version                 the version of nida and of nida-core
 
 Global options:
@@ -83,6 +91,8 @@ type app struct {
 	now    func() time.Time
 	// retry is the first wait before a stream connects again.
 	retry time.Duration
+	// getenv reads the environment.
+	getenv func(string) string
 }
 
 func main() {
@@ -115,7 +125,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		return 0
 	}
 
-	a := &app{out: stdout, errOut: stderr, json: *asJSON, now: time.Now, retry: 2 * time.Second}
+	a := &app{out: stdout, errOut: stderr, json: *asJSON, now: time.Now, retry: 2 * time.Second, getenv: getenv}
 	if *server != "" {
 		a.c = client.NewHTTP(*server, getenv("NIDA_TOKEN"))
 	} else {
@@ -143,6 +153,10 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		err = a.ca(ctx, cmdArgs)
 	case "db", "dbs", "database", "databases":
 		err = a.databases(ctx, cmdArgs)
+	case "github":
+		err = a.github(ctx, cmdArgs)
+	case "runner", "runners":
+		err = a.runners(ctx, cmdArgs)
 	case "version":
 		err = a.version(ctx, cmdArgs)
 	case "help":

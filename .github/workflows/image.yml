@@ -15,7 +15,7 @@ on:
         type: boolean
         default: false
   push:
-    branches: [main, "m01-*", "m02-*", "m03-*", "m04-*"]
+    branches: [main, "m01-*", "m02-*", "m03-*", "m04-*", "m05-*"]
     paths:
       - core/**
       - image/**
@@ -88,10 +88,15 @@ jobs:
       - name: Install and test in a virtual machine
         env:
           UPDATE_REF: 10.0.2.2:5000/nidaos:v2
+          # The GitHub App and the private repository of the M-05 test
+          # (knowledge/testing.md). Without them, the test skips the flow.
+          NIDA_TEST_GITHUB_APP_ID: ${{ secrets.NIDA_TEST_GITHUB_APP_ID }}
+          NIDA_TEST_GITHUB_APP_KEY: ${{ secrets.NIDA_TEST_GITHUB_APP_KEY }}
+          NIDA_TEST_GITHUB_REPO: ${{ vars.NIDA_TEST_GITHUB_REPO }}
         run: |
           ls -l /dev/kvm
           iso=$(sudo find out -name '*.iso' | head -n1)
-          sudo --preserve-env=UPDATE_REF bash scripts/vm-test.sh "$iso" out/vm
+          sudo --preserve-env=UPDATE_REF,GITHUB_RUN_ID,NIDA_TEST_GITHUB_APP_ID,NIDA_TEST_GITHUB_APP_KEY,NIDA_TEST_GITHUB_REPO bash scripts/vm-test.sh "$iso" out/vm
 
       - name: Collect the test results
         if: always()
