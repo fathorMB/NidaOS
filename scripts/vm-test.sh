@@ -454,10 +454,11 @@ db_client_app() {
         nida_app "deploy dbclient $REG/dbclient:1 --wait" > /dev/null
 }
 not_linked_refused() {
-    # Before the link, the network policy drops the packets of the app: the
-    # connection stops at the time limit, before the password check.
+    # Before the link, the network policy of k3s rejects the packets of the
+    # app: the connection stops before the password check ("Connection
+    # refused", or the time limit).
     ! client_sql 'PGCONNECT_TIMEOUT=5 psql "postgresql://x:y@pg.nida-db-shop-db.svc.cluster.local:5432/shop_db?sslmode=require" -c "SELECT 1"' > db-not-linked.log 2>&1 &&
-        grep -q 'timeout' db-not-linked.log && ! grep -q 'password' db-not-linked.log
+        grep -Eq 'Connection refused|timeout' db-not-linked.log && ! grep -Eq 'password|pg_hba' db-not-linked.log
 }
 app_writes() {
     client_sql 'psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -c "CREATE TABLE IF NOT EXISTS proof (x int); INSERT INTO proof VALUES (42);"'
