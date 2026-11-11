@@ -172,7 +172,8 @@ expect "the installed system keeps the disk plan" \
 echo "==> Examine k3s and the two storage tiers"
 k3s_ready() {
     local waited=0
-    until "${SSH[@]}" sudo k3s kubectl wait --for=condition=Ready node --all --timeout=10s > /dev/null 2>&1; do
+    until "${SSH[@]}" sudo k3s kubectl wait --for=condition=Ready node --all --timeout=10s > /dev/null 2>&1 &&
+        "${SSH[@]}" sudo k3s kubectl get serviceaccount default > /dev/null 2>&1; do
         [ "$waited" -ge 600 ] && return 1
         sleep 10
         waited=$((waited + 10))
@@ -225,14 +226,12 @@ pod_metrics() {
     "${SSH[@]}" sudo nida --json metrics | grep -q '"name": "nida-storage-proof"'
 }
 log_pod() {
-    "${SSH[@]}" sudo k3s kubectl run nida-log-proof --restart=Never \
-        --image=rancher/mirrored-library-busybox:1.37.0 -- \
-        sh -c 'i=0; while true; do echo "level=warn msg=nida-log-proof-$i"; i=$((i+1)); sleep 2; done' > /dev/null &&
+    "${SSH[@]}" sudo k3s kubectl apply -f - < "$REPO/tests/log-proof.yaml" > /dev/null &&
         "${SSH[@]}" sudo k3s kubectl wait --for=condition=Ready pod/nida-log-proof --timeout=300s > /dev/null
 }
 pod_logs() {
     "${SSH[@]}" sudo nida logs --source pod/default/nida-log-proof -n 5 |
-        grep -q 'WARN   pod/default/nida-log-proof/nida-log-proof  level=warn msg=nida-log-proof-'
+        grep -q 'WARN   pod/default/nida-log-proof/writer  level=warn msg=nida-log-proof-'
 }
 journal_logs() {
     "${SSH[@]}" sudo nida logs --source service/nida-vm-test -n 5 | grep -q "ERROR  service/nida-vm-test  $journal_marker"
@@ -241,7 +240,7 @@ store_search() {
     "${SSH[@]}" sudo nida logs --since 1h -q "$journal_marker" | grep -q "$journal_marker"
 }
 http_code() {
-    curl -s -o /dev/null -w '%{http_code}' "$@"
+    curl -s --max-time 15 -o /dev/null -w '%{http_code}' "$@"
 }
 tcp_needs_sign_in() {
     [ "$(http_code "$CORE/api/v1/state")" = 401 ] && [ "$(http_code "$CORE/healthz")" = 200 ]
