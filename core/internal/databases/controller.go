@@ -448,8 +448,3 @@ func (c *Controller) Remove(ctx context.Context, db string) error {
 	}
 	return err
 }
-
-// update comes in the task T-07.
-func (c *Controller) update(ctx context.Context, d Database) error {
-	return errors.New("the update is not available yet")
-}
