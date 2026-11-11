@@ -19,6 +19,7 @@ The service uses only the Go standard library at this time.
 go run . serve     # start the service (the default command)
 go run . version   # print the version
 printf '%s\n' "$password" | go run . set-password   # set the owner password
+go run . mdns-lookup blog.nidaos.local   # ask the mDNS responders for a name
 go test ./...      # run the tests
 ```
 
@@ -41,6 +42,12 @@ go test ./...      # run the tests
 | `NIDA_CORE_SOCKET` | `/run/nidaos/core.sock` | The local socket for the `nida` command on the computer. `off` closes it. |
 | `NIDA_CORE_SOCKET_GROUP` | `nida` | The group that can open the local socket. |
 | `NIDA_CORE_LOG_MAX_SIZE` | `10G` | The maximum size of the log store. The store deletes the oldest days first. `0` is no limit. |
+| `NIDA_CORE_APPS_FILE` | `/var/lib/nidaos/apps.json` | The apps, their versions and their secrets (mode 0600). `off` removes the app hosting. |
+| `NIDA_CORE_KUBECONFIG` | `/etc/rancher/k3s/k3s.yaml` | The access file of k3s for the app controller. The controller starts when the file is there. |
+| `NIDA_CORE_APPS_DOMAIN` | `nidaos.local` | The apps have the address `<app>.<domain>` (decision D19). |
+| `NIDA_CORE_REGISTRY` | `localhost:5000` | The local registry. A deploy accepts only an image from it (decision D21). |
+| `NIDA_CORE_CA_DIR` | `/var/lib/nidaos/ca` | The certificate authority of NidaOS and the certificate of the app addresses (decision D20). |
+| `NIDA_CORE_MDNS` | `on` | `off` stops the announcement of the app names on the home network. |
 
 To run the service on a development computer, use the copy of a NidaOS host in the tests:
 
@@ -66,6 +73,8 @@ The full description of the API, for the persons that make an interface, is in [
 | `GET /api/v1/logs` | The last log lines in memory. |
 | `GET /api/v1/logs/stream` | The live stream of the log lines (Server-Sent Events). |
 | `GET /api/v1/logs/search` | A search in the log lines of the last 30 days. |
+| `/api/v1/apps/...` | The apps: add, change, deploy, rollback, secrets, move of a folder, remove (milestone M-03). |
+| `GET /api/v1/ca.crt` | The certificate of the NidaOS authority, to install on a device. No sign-in. |
 
 ## Live metrics
 
@@ -189,6 +198,16 @@ export NIDA_SERVER=http://nida.local:8470 NIDA_TOKEN=nida_...
 | `nida token list` | The tokens. |
 | `nida token create NAME --level read` | Make a token. The output shows the secret one time. |
 | `nida token delete ID` | Delete a token. |
+| `nida app list` | The apps, their state, their version and their address. |
+| `nida app show NAME` | One app, with its settings and its last versions. |
+| `nida app add NAME --port 8080 --health /healthz` | Add an app. Also `--repo`, `--env K=V`, `--folder NAME:PATH:TIER:SIZE`, `--copies`, `--cpu`, `--memory`. |
+| `nida app deploy NAME IMAGE --wait` | Deploy an image of the local registry and wait for the health check. |
+| `nida app rollback NAME VERSION --wait` | Go back to an old version. |
+| `nida app set NAME ...` | Change the settings. A change of the config makes a new version. |
+| `nida app secret set NAME KEY` | Add or replace a secret. The value comes from the standard input. |
+| `nida app move NAME FOLDER TIER --wait` | Move a folder to the other storage tier. The app stops during the copy. |
+| `nida app remove NAME --yes` | Remove an app and the files of its folders. |
+| `nida ca` | The certificate of the NidaOS authority. `--fingerprint` gives its fingerprint. |
 | `nida version` | The version of `nida` and of `nida-core`. |
 
 The log commands accept `--source` (for example `pod/apps`), `--level` (`warning` gives the warnings and the errors) and `-q` (a text). `--json` before the command writes the JSON of the API: for the live commands, one JSON object on each line.

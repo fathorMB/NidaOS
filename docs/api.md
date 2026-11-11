@@ -39,7 +39,7 @@ curl --unix-socket /run/nidaos/core.sock http://nida/api/v1/state
 
 | Paths | Access |
 | --- | --- |
-| `/healthz`, `/readyz`, `/api/v1/health`, `/api/v1/auth/status`, `/api/v1/auth/login` | Open. No identity is necessary. |
+| `/healthz`, `/readyz`, `/api/v1/health`, `/api/v1/auth/status`, `/api/v1/auth/login`, `/api/v1/ca.crt` | Open. No identity is necessary. |
 | `/api/v1/auth/logout`, `/api/v1/auth/me` | Each identity. |
 | `/api/v1/tokens`, `/api/v1/tokens/{id}`, `/api/v1/auth/password` | The level `admin`. |
 | Each other `GET` | The level `read` or `admin`. |
@@ -95,6 +95,16 @@ Each error has this body:
 | 500 | `sign_in_failed`, `password_failed`, `token_failed`, `search_failed`, `stream_unsupported` | An internal problem. The cause is in the log of the service. |
 | 503 | `state_unavailable` | The service cannot read the state of the computer. |
 | 503 | `metrics_unavailable` | The first metric snapshot is not ready. Try again after some seconds. |
+| 400 | `bad_field` | A field of an app request is not valid. `message` names the field. |
+| 400 | `image_not_local` | The image of a deploy does not come from the local registry. |
+| 404 | `app_not_found`, `version_not_found`, `folder_not_found`, `secret_not_found` | The app, the version, the folder or the secret does not exist. |
+| 409 | `app_exists` | An app with this name exists. |
+| 409 | `app_busy` | A deploy of the app is in progress. |
+| 409 | `app_moving` | A move of a folder of the app is in progress. |
+| 409 | `no_rollback` | The target of the rollback is not a version in the state `replaced`. |
+| 409 | `no_version` | The app has no version in operation (for a restart). |
+| 503 | `apps_not_ready` | k3s is not ready. Try again after some seconds. |
+| 500 | `app_failed` | An internal problem of an app operation. |
 
 ## 4. The paths
 
@@ -109,6 +119,8 @@ Each error has this body:
 | `GET /api/v1/logs/search` | 4.5 |
 | `GET /api/v1/auth/status`, `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, `GET /api/v1/auth/me`, `PUT /api/v1/auth/password` | 4.6 |
 | `GET /api/v1/tokens`, `POST /api/v1/tokens`, `DELETE /api/v1/tokens/{id}` | 4.7 |
+| `/api/v1/apps`, `/api/v1/apps/{name}/...` | 4.8 |
+| `GET /api/v1/ca.crt`, `GET /api/v1/ca` | 4.9 |
 
 ### 4.1 Health
 
@@ -386,6 +398,135 @@ Response `201`: the fields of a token, and `secret`.
 
 Response: `204` without a body. Error: `404 token_not_found`. The token stops at once.
 
+### 4.8 Apps (milestone M-03)
+
+An app is a program of the owner that NidaOS keeps in operation on k3s. Each deploy makes a new **version**. The image of a version comes from the local registry `localhost:5000` (decision D21). The GitHub runner of M-05 builds and pushes the images. Before M-05, push them with `podman push --tls-verify=false`.
+
+| Method and path | Access | Result |
+| --- | --- | --- |
+| `GET /api/v1/apps` | `read` | `{"apps": [App, ...]}`, sorted by name. |
+| `POST /api/v1/apps` | `admin` | `201` and the new App. The app has no version. |
+| `GET /api/v1/apps/{name}` | `read` | One App. |
+| `PATCH /api/v1/apps/{name}` | `admin` | `200`: the App and `deploy` (section 4.8.3). |
+| `DELETE /api/v1/apps/{name}` | `admin` | `204`. It deletes the app, its versions, its secrets and **the files of its folders**. |
+| `POST /api/v1/apps/{name}/deploys` | `admin` | `202` and the new Version (section 4.8.4). |
+| `POST /api/v1/apps/{name}/rollback` | `admin` | `202` and the new Version (section 4.8.5). |
+| `POST /api/v1/apps/{name}/restart` | `admin` | `204`. All the copies start again. |
+| `PUT /api/v1/apps/{name}/secrets/{key}` | `admin` | `204`. Body: `{"value": "..."}`. |
+| `DELETE /api/v1/apps/{name}/secrets/{key}` | `admin` | `204`. |
+| `POST /api/v1/apps/{name}/folders/{folder}/move` | `admin` | `202` and the App. Body: `{"tier": "performance"}` (section 4.8.6). |
+
+#### 4.8.1 The App object
+
+```json
+{
+  "name": "blog",
+  "repository": "fathor/blog",
+  "branch": "main",
+  "config": {
+    "port": 8080,
+    "health_check": {"path": "/healthz", "interval_seconds": 5, "timeout_seconds": 2},
+    "variables": {"MODE": "prod"},
+    "limits": {"cpu_millis": 500, "memory_bytes": 268435456}
+  },
+  "copies": 1,
+  "folders": [
+    {"name": "data", "path": "/var/lib/blog", "tier": "standard", "size_bytes": 10737418240}
+  ],
+  "active": 3,
+  "versions": [ ... ],
+  "created": "2026-11-11T09:30:00Z",
+  "updated": "2026-11-11T10:02:00Z",
+  "state": "running",
+  "address": "https://blog.nidaos.local",
+  "secrets": ["DB_PASSWORD"],
+  "status": {"copies": 1, "ready": 1, "version": 3, "observed": "2026-11-11T10:02:05Z"}
+}
+```
+
+| Field | Values |
+| --- | --- |
+| `name` | 1 to 32 characters: lowercase letters, digits and `-`. It starts with a letter. It does not change. |
+| `config` | The config of the **next** version. Each version keeps its own copy. |
+| `config.port` | The TCP port where the app listens for HTTP. Without a port, the app has no address and no health check on the network (for example a worker). |
+| `config.health_check` | `omitempty`. A response from 200 to 399 on `path` is healthy. Without it, the check only opens the port. |
+| `config.variables` | The environment variables. The names that start with `NIDA_`, and `PORT`, are for NidaOS. |
+| `config.limits` | `0` is no limit. The minimum memory limit is 16 MiB. |
+| `copies` | 0 to 10. `0` stops the app. An app with folders has 1 copy at most. |
+| `folders` | The folders that stay after a deploy, on a storage tier (decision D7). All the other files of the app go away at each deploy. A folder can have `moving_to` (a move in progress) and `move_error` (the last move failed). |
+| `active` | The version in operation. `0`: no version passed the health check. |
+| `versions` | The last 5 versions, the oldest first, and also the active version. |
+| `state` | A summary for the lists: `new`, `deploying`, `moving`, `running`, `starting`, `stopped` or `failed`. |
+| `address` | `omitempty`: the app has no port. |
+| `secrets` | The names of the secrets. **The API never gives a value.** |
+| `status` | `omitempty`: the controller did not read the copies yet (for example before k3s is ready). |
+
+Each copy gets the variables, the secrets, and also `NIDA_APP`, `NIDA_VERSION`, `NIDA_COMMIT` and `PORT`.
+
+#### 4.8.2 The Version object
+
+```json
+{
+  "number": 3,
+  "image": "localhost:5000/blog:1.4",
+  "commit": "7c1d9a2",
+  "summary": "Try the new cache",
+  "rollback_of": 1,
+  "config": { ... },
+  "state": "serving",
+  "reason": "the container stops again and again (exit code 1, Error)",
+  "created": "2026-11-11T10:00:00Z",
+  "finished": "2026-11-11T10:00:41Z"
+}
+```
+
+| `state` | Meaning |
+| --- | --- |
+| `deploying` | The controller applies the version and waits for the health check. |
+| `serving` | The version is in operation. |
+| `failed` | The version did not pass the health check in 120 seconds, or its container stops again and again. `reason` tells why. **The version before stays in operation.** |
+| `replaced` | The version was in operation, and a newer version replaced it. A rollback can go back to it. |
+
+#### 4.8.3 Change the settings
+
+`PATCH /api/v1/apps/{name}` with one or more of these fields. A missing field does not change.
+
+```json
+{"repository": "fathor/blog", "branch": "main", "config": { ... }, "copies": 2, "add_folders": [ ... ]}
+```
+
+- `config` replaces the full config.
+- `add_folders` adds new folders. A change cannot remove a folder.
+- When `config` or `add_folders` changes and the app has a version in operation, the service makes a new version with the same image. The response has `"deploy": <number>`. Then follow that version as a deploy.
+- A change of `copies` only applies at once, without a new version.
+
+#### 4.8.4 Deploy
+
+Request: `{"image": "localhost:5000/blog:1.4", "commit": "7c1d9a2", "summary": "Try the new cache"}`. Only `image` is necessary.
+
+The response is `202`: the deploy runs in the service. To know the result, read the app until the state of the version is not `deploying`. The new copy starts before the old copy stops. For an app with folders, the old copy stops first.
+
+#### 4.8.5 Rollback
+
+Request: `{"version": 1}`. The target must be a version in the state `replaced`. The service makes a new version with the image and the config of the target, and deploys it as each other version: a rollback also has the health check.
+
+#### 4.8.6 Move a folder
+
+Request: `{"tier": "performance"}`. The app **stops during the copy**. The service copies the files to a new volume on the other tier, starts the app on it, and then deletes the old volume. When the copy fails, the app starts again on the old tier, with the old files, and `move_error` tells why. While `moving_to` is set, a deploy, a rollback or a change of the config gives `409 app_moving`.
+
+#### 4.8.7 The address of an app
+
+Each app with a port has the address `https://<name>.nidaos.local` in the home network (decision D19). The service announces the names with multicast DNS. The certificate comes from the NidaOS authority (section 4.9). In an other app, use `http://<name>` (port 80) or `http://<name>:<port>`.
+
+### 4.9 The certificate authority
+
+| Method and path | Access | Result |
+| --- | --- | --- |
+| `GET /api/v1/ca.crt` | Open | The certificate of the NidaOS authority in PEM (`application/x-x509-ca-cert`). Install it on a device, one time. |
+| `GET /api/v1/ca` | `read` | `{"fingerprint_sha256": "AB:CD:...", "download": "/api/v1/ca.crt"}`. Show the fingerprint, thus the person can compare it before the installation. |
+
+The authority can sign only names in `nidaos.local` (decision D20).
+
 ## 5. The live streams
 
 ### 5.1 The format
@@ -462,6 +603,14 @@ Follow the warnings and the errors of the namespace `apps`:
 ```sh
 curl -N -H 'Authorization: Bearer nida_...' \
   'http://nida:8470/api/v1/logs/stream?source=pod/apps&level=warning&tail=50'
+```
+
+Deploy a new version of an app, then read the result (through the local socket):
+
+```sh
+curl --unix-socket /run/nidaos/core.sock -H 'Content-Type: application/json' \
+  -d '{"image":"localhost:5000/blog:1.4","commit":"7c1d9a2"}' http://nida/api/v1/apps/blog/deploys
+curl --unix-socket /run/nidaos/core.sock http://nida/api/v1/apps/blog
 ```
 
 Find the errors of k3s of the last 2 days:

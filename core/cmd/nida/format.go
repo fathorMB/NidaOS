@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -93,4 +94,14 @@ func levelTag(level string) string {
 // oneLine removes the line breaks of a message.
 func oneLine(s string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(s, "\r", ""), "\n", " ⏎ ")
+}
+
+// sortedKeys gives the keys of m in order.
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }

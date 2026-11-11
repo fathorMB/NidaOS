@@ -117,6 +117,8 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 	// The app hosting (milestone M-03). The controller starts when k3s is
 	// ready.
 	appsDone := make(chan struct{})
+	var hosting *httpserver.AppHosting
+	var certs httpserver.CertSource
 	if cfg.AppsFile != "" {
 		appStore, err := apps.OpenStore(cfg.AppsFile)
 		if err != nil {
@@ -130,9 +132,11 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 				logger.Error("the certificate authority is not available: the apps have the default certificate of Traefik", "err", err)
 			} else {
 				opts.TLS = authority.ServerCert
+				certs = authority
 				logger.Info("the certificate authority is ready", "fingerprint", authority.Fingerprint())
 			}
 			runner := apps.NewRunner(appStore, cfg.Kubeconfig, opts)
+			hosting = &httpserver.AppHosting{Store: appStore, Runner: runner, Registry: cfg.Registry}
 			go func() {
 				runner.Run(ctx)
 				close(appsDone)
@@ -158,6 +162,10 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 		State:   system.NewCollector(cfg.Root, cfg.PlanFile),
 		Metrics: sampler.Hub,
 		Logs:    pipeline,
+		Apps:    hosting,
+	}
+	if certs != nil {
+		deps.Authority = certs
 	}
 
 	// The log store. Without it, the service keeps the logs only in memory.

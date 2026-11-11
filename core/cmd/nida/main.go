@@ -9,6 +9,8 @@
 //	nida metrics [--watch]
 //	nida logs [-f] [--since 2h] [--source pod/apps] [--level warning] [-q text] [-n 50]
 //	nida token list | create NAME [--level read|admin] | delete ID
+//	nida app list | show | add | deploy | rollback | set | secret | move | restart | remove
+//	nida ca [--fingerprint]
 //	nida version
 //
 // Each command accepts --json: the output is the JSON of the API, for
@@ -43,6 +45,16 @@ Commands:
   token list              the tokens of the programs
   token create NAME       make a token (--level read or admin)
   token delete ID         delete a token
+  app list                the apps; "nida app" shows all the app commands
+  app show NAME           one app, with its versions
+  app add NAME            add an app (--port, --health, --env, --folder, ...)
+  app deploy NAME IMAGE   deploy an image of the local registry (--wait)
+  app rollback NAME N     go back to the version N (--wait)
+  app set NAME            change the settings (--port, --env, --copies, ...)
+  app secret set NAME KEY add or replace a secret (the value from stdin)
+  app move NAME FOLDER T  move a folder to the tier T (performance or standard)
+  app remove NAME --yes   remove an app and the files of its folders
+  ca [--fingerprint]      the certificate of the NidaOS authority, to install on a device
   version                 the version of nida and of nida-core
 
 Global options:
@@ -117,6 +129,10 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		err = a.logs(ctx, cmdArgs)
 	case "token", "tokens":
 		err = a.token(ctx, cmdArgs)
+	case "app", "apps":
+		err = a.apps(ctx, cmdArgs)
+	case "ca":
+		err = a.ca(ctx, cmdArgs)
 	case "version":
 		err = a.version(ctx, cmdArgs)
 	case "help":
