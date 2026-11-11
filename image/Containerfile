@@ -1,8 +1,18 @@
 # NidaOS image recipe.
 # The base is Fedora in the image-based form (bootc).
 #
-# Build it with the source of the core service as a second context:
-#   podman build --build-context core=core -f image/Containerfile image
+# Build it with the source of the core service and of the web console as
+# more contexts:
+#   podman build --build-context core=core --build-context console=console #       -f image/Containerfile image
+
+# Build the web console (milestone M-06). nida-core keeps its files
+# (decision D29).
+FROM docker.io/library/node:24 AS console-build
+WORKDIR /src
+COPY --from=console package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY --from=console . .
+RUN npm run typecheck && npx vitest run && npx vite build --outDir /out/dist --emptyOutDir
 
 # Build nida-core and nida (milestone M-02). The programs are static: they
 # need no library of the image.
@@ -10,6 +20,7 @@ FROM docker.io/library/golang:1.26 AS core-build
 ARG NIDAOS_BUILD=dev
 WORKDIR /src
 COPY --from=core . .
+COPY --from=console-build /out/dist/ ./internal/console/dist/
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
         -ldflags "-s -w -X github.com/fathorMB/NidaOS/core/internal/version.Version=${NIDAOS_BUILD}" \
         -o /out/nida-core . && \
