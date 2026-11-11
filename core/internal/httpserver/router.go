@@ -35,6 +35,10 @@ type Router struct {
 	logs    LogSource
 	// logStore searches the old lines.
 	logStore LogSearcher
+	// apps is the app hosting. Nil: no app paths.
+	apps *AppHosting
+	// authority gives the certificate of the NidaOS authority.
+	authority CertSource
 	// auth checks the sessions and the tokens. Nil: no access check.
 	auth    Authenticator
 	limiter *auth.Limiter
@@ -57,6 +61,11 @@ type Deps struct {
 	// Auth checks the access to each path. Nil gives the access to all,
 	// only for the tests. main always sets it.
 	Auth Authenticator
+	// Apps is the app hosting (milestone M-03). Nil: no app paths.
+	Apps *AppHosting
+	// Authority gives the certificate of the NidaOS authority. Nil: no
+	// certificate paths.
+	Authority CertSource
 }
 
 // NewRouter makes the router with all the paths of the service.
@@ -69,6 +78,8 @@ func NewRouter(d Deps) *Router {
 		logs:      d.Logs,
 		logStore:  d.LogStore,
 		auth:      d.Auth,
+		apps:      d.Apps,
+		authority: d.Authority,
 		limiter:   auth.NewLimiter(),
 		started:   time.Now(),
 		now:       time.Now,
@@ -87,6 +98,7 @@ func NewRouter(d Deps) *Router {
 	r.addLogRoutes()
 	r.addLogSearchRoutes()
 	r.addAuthRoutes()
+	r.addAppRoutes()
 	r.mux.HandleFunc("/", r.noRoute)
 	return r
 }

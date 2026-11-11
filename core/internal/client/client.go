@@ -110,6 +110,24 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
+// Raw sends a GET request and gives the body as it is, for a response
+// that is not JSON.
+func (c *Client) Raw(ctx context.Context, path string) ([]byte, error) {
+	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, connError(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return nil, readError(resp)
+	}
+	return io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+}
+
 // Get is Do with GET.
 func (c *Client) Get(ctx context.Context, path string, q url.Values, out any) error {
 	if len(q) > 0 {

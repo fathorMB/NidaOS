@@ -37,8 +37,27 @@ The script prints one `PASS` or `FAIL` line for each check. The report of the fe
 - `ssh` joins its arguments into one command line, and the remote shell reads that line again. Thus quotes inside the arguments are lost. Give a remote command with quotes as one string: `"${SSH[@]}" "stat -c '%U:%G %a' /run/x"`. Send a pod or a script with a `sh -c` part as a manifest on stdin (`kubectl apply -f - < tests/x.yaml`).
 - k3s can be ready before it makes the service account `default`. Wait for it before a pod of the namespace `default`.
 - Give `curl` a time limit (`--max-time`): a port that drops the packets keeps it open with no limit.
-- The log of a running step is not visible on GitHub. When the step "Install and test in a virtual machine" takes more than 15 minutes, cancel the run and read the log.
+- The log of a running step is not visible on GitHub. When the step "Install and test in a virtual machine" takes more than 30 minutes, cancel the run and read the log. Before M-03 the limit was 15 minutes. The app checks of M-03 add some minutes: the registry image, four image builds and five deploys.
+- A command that waits in the VM (for example `nida app deploy --wait`) has `timeout` in front of it, thus a check cannot hang.
+- Do not keep a file of the test in `/tmp` of the VM when a check after a restart uses it: `/tmp` is empty after each start.
+- A deleted volume claim of k3s leaves its folder for some seconds: the provisioner deletes it with a helper pod. Use `retry` for a check of the folder.
 
 ## The core service in the VM
 
 The full cycle also examines `nida-core` (milestone M-02): the version, the tiers, the metrics and the logs of real pods, the journal, the log search, the access rules and the update. The port 8470 of the VM is forwarded to `127.0.0.1:8470` of the runner.
+
+## The app hosting in the VM
+
+The full cycle also examines the app hosting (milestone M-03). The test builds the images of `tests/hello-app` in the VM with `podman` and pushes them to the local registry `localhost:5000`. Then it examines:
+
+- the deploy with the health check, and the page at `https://hello.nidaos.local` with the certificate of the NidaOS authority (`curl --resolve` to the address of the VM);
+- the answer of the mDNS responder (`nida-core mdns-lookup`);
+- the secret, the variable and the system variables in the copy;
+- a broken version: the deploy fails and version 1 stays in operation;
+- a new version, a rollback, and the files of the folder after each step;
+- the internal name: the app `hello` gets the page of the app `api` at `http://api/`;
+- the move of the folder from the standard disk to the performance disk;
+- the remove of the app, and of its internal name in the other apps;
+- the app `api` after the update of the system and after the rollback.
+
+The VM test cannot examine the mDNS answer on a different device, because the QEMU network of the runner has no multicast. The operator must examine one Windows computer and one phone in the home network (decision D19).

@@ -29,10 +29,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fathorMB/NidaOS/core/internal/apps"
 	"github.com/fathorMB/NidaOS/core/internal/auth"
+	"github.com/fathorMB/NidaOS/core/internal/ca"
 	"github.com/fathorMB/NidaOS/core/internal/config"
 	"github.com/fathorMB/NidaOS/core/internal/httpserver"
 	"github.com/fathorMB/NidaOS/core/internal/logs"
+	"github.com/fathorMB/NidaOS/core/internal/mdns"
 	"github.com/fathorMB/NidaOS/core/internal/metrics"
 	"github.com/fathorMB/NidaOS/core/internal/system"
 	"github.com/fathorMB/NidaOS/core/internal/version"
@@ -47,6 +50,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) > 0 {
 		cmd = args[0]
 	}
+	if cmd == "mdns-lookup" {
+		return runMDNSLookup(args[1:], stdout, stderr)
+	}
 	if len(args) > 1 {
 		fmt.Fprintf(stderr, "nida-core: too many arguments: %v\n", args)
 		return 2
@@ -60,7 +66,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runSetPassword(os.Stdin, stdout, stderr)
 	case "serve":
 	default:
-		fmt.Fprintf(stderr, "nida-core: unknown command %q (use serve, set-password or version)\n", cmd)
+		fmt.Fprintf(stderr, "nida-core: unknown command %q (use serve, set-password, mdns-lookup or version)\n", cmd)
 		return 2
 	}
 
@@ -111,6 +117,47 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 		logger.Warn("the owner password is not set: set it with nida-core set-password")
 	}
 
+	// The app hosting (milestone M-03). The controller starts when k3s is
+	// ready.
+	appsDone := make(chan struct{})
+	var hosting *httpserver.AppHosting
+	var certs httpserver.CertSource
+	if cfg.AppsFile != "" {
+		appStore, err := apps.OpenStore(cfg.AppsFile)
+		if err != nil {
+			logger.Error("the apps file is not available: the service has no app hosting", "err", err)
+			close(appsDone)
+		} else {
+			opts := apps.Options{Domain: cfg.AppsDomain, Logger: logger}
+			// The certificate authority of the app addresses (D20).
+			authority, err := ca.Open(cfg.CADir, cfg.AppsDomain)
+			if err != nil {
+				logger.Error("the certificate authority is not available: the apps have the default certificate of Traefik", "err", err)
+			} else {
+				opts.TLS = authority.ServerCert
+				certs = authority
+				logger.Info("the certificate authority is ready", "fingerprint", authority.Fingerprint())
+			}
+			runner := apps.NewRunner(appStore, cfg.Kubeconfig, opts)
+			hosting = &httpserver.AppHosting{Store: appStore, Runner: runner, Registry: cfg.Registry}
+			go func() {
+				runner.Run(ctx)
+				close(appsDone)
+			}()
+			// The names of the apps on the home network (D19).
+			if cfg.MDNS {
+				responder := &mdns.Responder{Names: func() []string { return appNames(appStore, cfg.AppsDomain) }, Logger: logger}
+				go func() {
+					if err := responder.Run(ctx); err != nil {
+						logger.Error("the mDNS responder is not available: the devices cannot find the app names", "err", err)
+					}
+				}()
+			}
+		}
+	} else {
+		close(appsDone)
+	}
+
 	pipeline := logs.NewPipeline(cfg.LogBufferLines)
 	deps := httpserver.Deps{
 		Auth:    authStore,
@@ -118,6 +165,10 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 		State:   system.NewCollector(cfg.Root, cfg.PlanFile),
 		Metrics: sampler.Hub,
 		Logs:    pipeline,
+		Apps:    hosting,
+	}
+	if certs != nil {
+		deps.Authority = certs
 	}
 
 	// The log store. Without it, the service keeps the logs only in memory.
@@ -161,6 +212,7 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 		stopAll() // also when the server stops with an error
 		<-sourcesDone
 		<-storeDone
+		<-appsDone
 	}()
 
 	router := httpserver.NewRouter(deps)

@@ -69,6 +69,9 @@ func accessOf(req *http.Request) access {
 		return accessPublic
 	case p == "/api/v1/auth/login" || p == "/api/v1/auth/status":
 		return accessPublic
+	case p == "/api/v1/ca.crt":
+		// The certificate of the authority is public data (decision D20).
+		return accessPublic
 	case p == "/api/v1/auth/logout" || p == "/api/v1/auth/me":
 		return accessAny
 	case p == "/api/v1/tokens" || strings.HasPrefix(p, "/api/v1/tokens/") || p == "/api/v1/auth/password":

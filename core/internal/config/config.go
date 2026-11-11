@@ -69,6 +69,28 @@ type Config struct {
 
 	// SocketGroup is the group that can open the local socket.
 	SocketGroup string
+
+	// AppsFile keeps the apps (milestone M-03). It is empty when the value
+	// is "off": then the service has no app hosting.
+	AppsFile string
+
+	// Kubeconfig is the access file of k3s for the app controller.
+	Kubeconfig string
+
+	// AppsDomain gives the address "<app>.<AppsDomain>" of each app
+	// (decision D19).
+	AppsDomain string
+
+	// Registry is the local image registry (decision D21). A deploy accepts
+	// only an image from it.
+	Registry string
+
+	// CADir keeps the certificate authority of NidaOS (decision D20).
+	CADir string
+
+	// MDNS is false when the value of NIDA_CORE_MDNS is "off": then the
+	// service does not announce the app names on the home network.
+	MDNS bool
 }
 
 // Defaults of the configuration.
@@ -89,6 +111,11 @@ const (
 	DefaultAuthFile       = "/var/lib/nidaos/auth.json"
 	DefaultSocket         = "/run/nidaos/core.sock"
 	DefaultSocketGroup    = "nida"
+	DefaultAppsFile       = "/var/lib/nidaos/apps.json"
+	DefaultKubeconfig     = "/etc/rancher/k3s/k3s.yaml"
+	DefaultAppsDomain     = "nidaos.local"
+	DefaultRegistry       = "localhost:5000"
+	DefaultCADir          = "/var/lib/nidaos/ca"
 )
 
 // DefaultJournalctl is the default command for the journal.
@@ -118,6 +145,12 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 		AuthFile:        DefaultAuthFile,
 		Socket:          DefaultSocket,
 		SocketGroup:     DefaultSocketGroup,
+		AppsFile:        DefaultAppsFile,
+		Kubeconfig:      DefaultKubeconfig,
+		AppsDomain:      DefaultAppsDomain,
+		Registry:        DefaultRegistry,
+		CADir:           DefaultCADir,
+		MDNS:            true,
 	}
 
 	if v := strings.TrimSpace(getenv(Prefix + "ADDR")); v != "" {
@@ -208,6 +241,29 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 	}
 	if v := strings.TrimSpace(getenv(Prefix + "SOCKET_GROUP")); v != "" {
 		cfg.SocketGroup = v
+	}
+
+	if v := strings.TrimSpace(getenv(Prefix + "APPS_FILE")); v != "" {
+		if v == "off" {
+			cfg.AppsFile = ""
+		} else {
+			cfg.AppsFile = v
+		}
+	}
+	if v := strings.TrimSpace(getenv(Prefix + "KUBECONFIG")); v != "" {
+		cfg.Kubeconfig = v
+	}
+	if v := strings.TrimSpace(getenv(Prefix + "APPS_DOMAIN")); v != "" {
+		cfg.AppsDomain = strings.TrimSuffix(strings.ToLower(v), ".")
+	}
+	if v := strings.TrimSpace(getenv(Prefix + "REGISTRY")); v != "" {
+		cfg.Registry = strings.TrimSuffix(v, "/")
+	}
+	if v := strings.TrimSpace(getenv(Prefix + "CA_DIR")); v != "" {
+		cfg.CADir = v
+	}
+	if v := strings.TrimSpace(getenv(Prefix + "MDNS")); v != "" {
+		cfg.MDNS = v != "off"
 	}
 
 	return cfg, nil

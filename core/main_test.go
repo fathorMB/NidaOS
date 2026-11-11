@@ -200,3 +200,15 @@ func socketClient(path string) *http.Client {
 		},
 	}}
 }
+
+func TestMDNSLookupArguments(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := run([]string{"mdns-lookup"}, &out, &errOut); code != 2 || !strings.Contains(errOut.String(), "use: nida-core mdns-lookup") {
+		t.Errorf("without a name: %d %q", code, errOut.String())
+	}
+	// A name that nobody announces: no answer, exit code 1.
+	errOut.Reset()
+	if code := run([]string{"mdns-lookup", "nobody-has-this-name.local"}, &out, &errOut); code != 1 || strings.Contains(errOut.String(), "too many arguments") {
+		t.Errorf("unknown name: %d %q", code, errOut.String())
+	}
+}

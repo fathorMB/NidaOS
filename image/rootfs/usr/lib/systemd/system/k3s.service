@@ -25,4 +25,5 @@ ExecStartPre=-/sbin/modprobe overlay
 # /var is not part of the image. Copy the NidaOS manifests at each start,
 # thus an image update also updates them.
 ExecStartPre=/usr/bin/install -D -m 0600 /usr/share/nidaos/k3s/nida-storage.yaml /var/lib/rancher/k3s/server/manifests/nida-storage.yaml
+ExecStartPre=/usr/bin/install -D -m 0600 /usr/share/nidaos/k3s/nida-registry.yaml /var/lib/rancher/k3s/server/manifests/nida-registry.yaml
 ExecStart=/usr/bin/k3s server

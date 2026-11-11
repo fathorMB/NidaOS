@@ -302,6 +302,129 @@ expect "a user outside the group nida cannot open the local socket" other_user_n
     "${SSH[@]}" sudo ls -l /run/nidaos /var/lib/nidaos /var/lib/nidaos/logs || true
 } | tee -a report.txt
 
+echo "==> Examine the app hosting (M-03)"
+# The test builds the images of a small web app in the virtual machine and
+# pushes them to the local registry (decision D21). The rules of the
+# section "Rules for scripts/vm-test.sh" in knowledge/testing.md apply: a
+# remote command with quotes is one string for ssh.
+REG=localhost:5000
+vm_ip=$("${SSH[@]}" "ip -4 -o route get 1.1.1.1 | sed -n 's/.* src \([0-9.]*\).*/\1/p'")
+
+registry_ready() {
+    "${SSH[@]}" "curl -sf --max-time 5 http://127.0.0.1:5000/v2/ > /dev/null"
+}
+build_images() {
+    "${SSH[@]}" "mkdir -p /tmp/hello && cat > /tmp/hello/Containerfile" < "$REPO/tests/hello-app/Containerfile" &&
+        "${SSH[@]}" "cd /tmp/hello &&
+            sudo podman build -q -t $REG/hello:1 --build-arg VERSION=1 . &&
+            sudo podman build -q -t $REG/hello:2 --build-arg VERSION=2 . &&
+            sudo podman build -q -t $REG/hello:bad --build-arg VERSION=bad --build-arg BROKEN=yes . &&
+            sudo podman build -q -t $REG/api:1 --build-arg VERSION=api . &&
+            for i in hello:1 hello:2 hello:bad api:1; do sudo podman push -q --tls-verify=false $REG/\$i || exit 1; done" > app-images.log 2>&1
+}
+nida_app() {
+    # A deploy waits for the health check. timeout stops a deploy that
+    # hangs, thus the VM step cannot hang (knowledge/testing.md).
+    "${SSH[@]}" "sudo timeout 400 nida app $*"
+}
+# page gives the page of an app at its https address, with the certificate
+# of the NidaOS authority. --resolve gives the address that mDNS gives to a
+# device of the home network. The certificate is in the home folder of the
+# user: /tmp is empty after a restart of the system.
+page() {
+    local app=$1 path=${2:-/}
+    "${SSH[@]}" "curl -sf --max-time 10 --cacert nida-ca.crt --resolve $app.nidaos.local:443:$vm_ip https://$app.nidaos.local$path"
+}
+page_is() {
+    [ "$(page "$1" "$2")" = "$3" ]
+}
+app_added() {
+    nida_app add hello --repo fathor/hello --port 8080 --health /healthz \
+        --folder data:/data:standard:64M --env GREETING=hi > /dev/null &&
+        nida_app "secret set hello TOKEN --value s3cret-vm" > /dev/null
+}
+ca_installed() {
+    "${SSH[@]}" "sudo nida ca > nida-ca.crt && grep -q 'BEGIN CERTIFICATE' nida-ca.crt"
+}
+mdns_answers() {
+    [ "$("${SSH[@]}" nida-core mdns-lookup hello.nidaos.local)" = "$vm_ip" ]
+}
+copy_env() {
+    local out
+    out=$("${SSH[@]}" "sudo k3s kubectl exec -n nida-app-hello deploy/app -- sh -c 'echo \$TOKEN \$GREETING \$NIDA_APP'") &&
+        [ "$out" = "s3cret-vm hi hello" ]
+}
+broken_version_fails() {
+    # The deploy fails, and nida gives the exit code 1.
+    ! nida_app "deploy hello $REG/hello:bad --wait" > deploy-bad.log 2>&1 &&
+        grep -q 'version 1 stays in operation' deploy-bad.log
+}
+app_version_active() {
+    "${SSH[@]}" "sudo nida --json app show hello" | grep -q "\"active\": $1,"
+}
+internal_name() {
+    nida_app add api --port 8080 > /dev/null &&
+        nida_app "deploy api $REG/api:1 --wait" > /dev/null &&
+        retry 60 internal_name_answers
+}
+internal_name_answers() {
+    [ "$("${SSH[@]}" "sudo k3s kubectl exec -n nida-app-hello deploy/app -- wget -qO- -T 5 http://api/")" = "nida-hello-api" ]
+}
+folder_on() {
+    "${SSH[@]}" "sudo sh -c 'ls -d /var/nida/$1/volumes/*nida-app-hello_folder-data-$1* > /dev/null 2>&1'"
+}
+app_removed() {
+    nida_app "remove hello --yes" > /dev/null &&
+        retry 120 namespace_gone nida-app-hello
+}
+namespace_gone() {
+    ! "${SSH[@]}" "sudo k3s kubectl get namespace $1" > /dev/null 2>&1
+}
+alias_gone() {
+    ! "${SSH[@]}" "sudo k3s kubectl get service -n nida-app-api hello" > /dev/null 2>&1
+}
+
+expect "the local registry is ready" retry 300 registry_ready
+expect "the test builds the app images and pushes them to the local registry" build_images
+expect "the owner adds an app with a folder, a variable and a secret" app_added
+expect "the first version passes the health check" nida_app "deploy hello $REG/hello:1 --commit aaa111 --wait"
+expect "nida ca gives the certificate of the NidaOS authority" ca_installed
+expect "the app answers at its https address with the certificate of NidaOS" retry 60 page_is hello / nida-hello-1
+expect "the mDNS responder gives the address of the app" retry 30 mdns_answers
+expect "the copy gets the secret, the variable and the name of the app" copy_env
+expect "a broken version fails and the version before stays" broken_version_fails
+expect "the app still answers with version 1 after the failed deploy" retry 120 page_is hello / nida-hello-1
+expect "version 2 passes the health check" nida_app "deploy hello $REG/hello:2 --wait"
+expect "the app answers with version 2" retry 60 page_is hello / nida-hello-2
+expect "the files of the folder stay after a deploy" page_is hello /first 1
+expect "the rollback to version 1 passes the health check" nida_app "rollback hello 1 --wait"
+expect "the app answers with version 1 after the rollback" retry 60 page_is hello / nida-hello-1
+expect "the active version is the rollback" app_version_active 4
+expect "an app reaches an other app by its name" internal_name
+expect "the folder is on the standard disk" folder_on standard
+expect "the move of the folder to the performance tier passes" nida_app "move hello data performance --wait"
+expect "the folder is on the performance disk after the move" folder_on performance
+# The storage provisioner deletes the old folder some seconds after the
+# claim, with a helper pod.
+no_folder_on() {
+    ! folder_on "$1"
+}
+expect "the old folder on the standard disk is deleted" retry 60 no_folder_on standard
+expect "the files of the folder stay after the move" retry 60 page_is hello /first 1
+{
+    echo "## nida app list"
+    "${SSH[@]}" sudo nida app list || true
+    echo "## nida app show hello"
+    "${SSH[@]}" sudo nida app show hello || true
+    echo "## the failed deploy"
+    cat deploy-bad.log || true
+    echo "## app objects"
+    "${SSH[@]}" sudo k3s kubectl get all,pvc,ingressroute -n nida-app-hello || true
+    "${SSH[@]}" sudo k3s kubectl get pods,pvc -n nida-system || true
+} | tee -a report.txt
+expect "the remove of an app deletes its namespace" app_removed
+expect "the other apps lose the internal name of the removed app" retry 60 alias_gone
+
 echo "==> Examine the desktop and the RDP service"
 rdp_password=$(head -c 18 /dev/urandom | base64 | tr -d '/+=')
 rdp_listens() {
@@ -362,12 +485,14 @@ if [ -n "${UPDATE_REF:-}" ]; then
         "${SSH[@]}" grep -qx "NIDAOS_BUILD=${BUILD_AFTER:-v2}" /usr/lib/nidaos/release
     expect "the core service runs the new image version" retry 60 core_version "${BUILD_AFTER:-v2}"
     expect "the log store keeps its lines after the update" store_search
+    expect "the apps stay in operation after the update" retry 180 page_is api / nida-hello-api
     expect "the data on the storage tiers stays after the update" \
         "${SSH[@]}" "sudo sh -c 'grep -qx performance /var/nida/performance/volumes/*/proof.txt'"
     expect "bootc prepares the rollback" "${SSH[@]}" sudo bootc rollback
     expect "the system restarts after the rollback" reboot_vm
     expect "the system runs the first image version again" \
         "${SSH[@]}" grep -qx "NIDAOS_BUILD=${BUILD_BEFORE:-v1}" /usr/lib/nidaos/release
+    expect "the apps stay in operation after the rollback" retry 180 page_is api / nida-hello-api
     {
         echo "## bootc status after the rollback"
         "${SSH[@]}" sudo bootc status || true

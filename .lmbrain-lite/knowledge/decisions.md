@@ -91,3 +91,19 @@ The operator selected two levels on 2026-11-11. Each token has a name and a leve
 ## D18 — The nida command on the computer uses a local socket
 
 The operator selected a local socket on 2026-11-11. The core service also listens on a socket file that only `root` and the group `nida` can open. A request through this socket has the `admin` level, without a password or a token. Reason: the operator uses the `nida` command on the computer through SSH or the desktop, and the system permissions of the file already control the access.
+
+## D19 — The apps have mDNS names in the home network
+
+The operator selected mDNS on 2026-11-11. Each app has the address `<app>.nidaos.local`. The core service announces the names on the home network with multicast DNS, the same as a printer. Reason: the router needs no change. Risk: some old Android devices do not find `.local` names. The operator must examine one Windows computer, because the VM test cannot examine the Windows resolver for a name with two labels.
+
+## D20 — NidaOS has its own certificate authority
+
+The operator selected an own authority on 2026-11-11. The core service makes the authority at the first start and signs one certificate for `*.nidaos.local`. The operator installs the authority one time on each device. The API gives the certificate of the authority without a sign-in, because it is public data. The private key stays on the computer, in `/var/lib/nidaos`, and only `root` can read it.
+
+## D21 — A deploy takes an image from a local registry
+
+The operator selected a local registry on 2026-11-11. NidaOS runs a small image registry on the computer. A deploy takes an image from it. In M-03 the test pushes the image. In M-05 the GitHub runner on the computer builds the image, pushes it and starts the deploy. No image leaves the home network.
+
+## D22 — The app controller uses client-go and a JSON file
+
+The lead selected this on 2026-11-11 for M-03. The app controller of GitStack uses the Kubernetes client `client-go`. NidaOS keeps it, thus the reuse of D4 is possible. NidaOS has one owner and few apps. Thus a JSON file in `/var/lib/nidaos` keeps the apps, the same as the sign-in data, and NidaOS needs no database for its own data.

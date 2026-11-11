@@ -6,7 +6,7 @@ name: core
 on:
   workflow_dispatch:
   push:
-    branches: [main, "m01-*", "m02-*"]
+    branches: [main, "m01-*", "m02-*", "m03-*"]
     paths:
       - core/**
       - .github/workflows/core.yml
