@@ -56,6 +56,15 @@ jobs:
             -e 's#http://azure.archive.ubuntu.com#http://archive.ubuntu.com#' \
             /etc/apt/sources.list.d/*.sources /etc/apt/sources.list 2>/dev/null || true
           grep -rh '^URIs\|^deb ' /etc/apt/sources.list.d/ /etc/apt/sources.list 2>/dev/null | sort -u || true
+          # The DNS server of the runner sometimes does not resolve the
+          # names of ubuntu.com (run 43061287395). Then use public servers.
+          if ! getent hosts archive.ubuntu.com > /dev/null; then
+            echo "The DNS server of the runner does not resolve archive.ubuntu.com: use 1.1.1.1 and 8.8.8.8"
+            iface=$(ip route show default | awk '{print $5; exit}')
+            sudo resolvectl dns "$iface" 1.1.1.1 8.8.8.8
+            sudo resolvectl flush-caches
+            getent hosts archive.ubuntu.com
+          fi
           apt() { sudo timeout 900 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 "$@"; }
           apt update
           apt install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf xorriso socat freerdp3-x11
