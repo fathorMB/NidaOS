@@ -260,8 +260,9 @@ owner_sign_in() {
 }
 owner_uses_socket() {
     # The installer makes the user nida with its own group nida. Thus the
-    # owner opens the socket without sudo.
-    [ "$("${SSH[@]}" stat -c '%U:%G %a' /run/nidaos/core.sock)" = "root:nida 660" ] &&
+    # owner opens the socket without sudo. ssh joins its arguments into
+    # one command line, thus the remote command is one quoted string.
+    [ "$("${SSH[@]}" "stat -c '%U:%G %a' /run/nidaos/core.sock")" = "root:nida 660" ] &&
         "${SSH[@]}" nida status > nida-owner.log 2>&1
 }
 other_user_no_socket() {
