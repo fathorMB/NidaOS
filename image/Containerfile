@@ -59,7 +59,7 @@ COPY rootfs/ /
 COPY --from=core-build /out/nida-core /out/nida /usr/bin/
 
 RUN chmod 0755 /usr/libexec/nidaos/nida-rdp-setup && \
-    systemctl enable k3s.service gdm.service nida-rdp-setup.service gnome-remote-desktop.service nida-core.service && \
+    systemctl enable k3s.service gdm.service nida-rdp-setup.service gnome-remote-desktop.service nida-core.service nida-firstboot.service && \
     systemctl set-default graphical.target
 
 # The build identifier. The update test builds the image two times with

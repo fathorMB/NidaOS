@@ -1,0 +1,17 @@
+[Unit]
+Description=The NidaOS installer (the page on the port 80)
+After=systemd-udev-settle.service local-fs.target
+Wants=systemd-udev-settle.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/nida-installer --addr :80
+Restart=on-failure
+RestartSec=3
+# The progress also goes to the screen and to the serial console, thus the
+# automatic test sees it.
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

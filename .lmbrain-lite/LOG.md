@@ -174,3 +174,5 @@ One line per action. Format: `timestamp | by:<who> | <target or -> | <kind> | <m
 2026-11-11T23:27 | by:lead | M-06 | status | active -> done: The ten tasks are complete, and run 43105643515 passed all 116 checks of the VM test with the browser test.
 2026-11-11T23:27 | by:lead | M-06 | code-snapshot | Code snapshot: 19803 production lines, 6199 test lines, 188 tests, 165 source files.
 2026-11-11T23:27 | by:lead | M-06 | code-note | Wrote the code notes: 6 steps.
+2026-11-12T00:03 | by:lead | M-06 | note | The lead opened the pull request 5 (m06-console to main) for the milestone M-06.
+2026-11-12T00:19 | by:lead | M-07 | status | approved -> active: M-06 is merged. The operator selected D32, D33 and D34 for M-07.
