@@ -101,3 +101,8 @@ One line per action. Format: `timestamp | by:<who> | <target or -> | <kind> | <m
 2026-11-11T11:20 | by:lead | M-03/T-09 | task | done: Run 42997757754 passed all 64 checks. The VM test examines the deploy, a broken version, the rollback, the internal name, the move of a folder, the mDNS answer, the remove, and the apps after the system update and rollback. — Test the full life of an app in the virtual machine: add, deploy, rollback, move, remove
 2026-11-11T11:20 | by:lead | - | code-snapshot | Code snapshot: 8505 production lines, 3652 test lines, 106 tests, 86 source files, 19 files with no area.
 2026-11-11T11:20 | by:lead | - | code-snapshot | Rebuilt the code history: 0 counted again, 2 mapped again, 1 skipped.
+2026-11-11T11:21 | by:lead | M-03 | commit | 697dada passes the full VM test of M-03 with 64 checks; the M-03 work is on the branch m03-hosting.
+2026-11-11T11:21 | by:lead | M-03 | status | active -> done: The nine tasks are done. Run 42997757754 passed all 64 checks of the VM test. The operator must still examine the mDNS names from a Windows computer and a phone.
+2026-11-11T11:21 | by:lead | M-03 | code-snapshot | Code snapshot: 8505 production lines, 3652 test lines, 106 tests, 86 source files.
+2026-11-11T11:21 | by:lead | M-03 | code-note | Wrote the code notes: 5 steps.
+2026-11-11T11:21 | by:lead | M-03 | code-note | Wrote the code notes: 5 steps.
