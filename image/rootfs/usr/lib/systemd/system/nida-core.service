@@ -30,7 +30,9 @@ StateDirectoryMode=0755
 # logs and the journal of all the units. These rules limit the rest.
 NoNewPrivileges=yes
 ProtectSystem=strict
-ReadWritePaths=/var/lib/nidaos /run/nidaos
+# /var/nida/standard/backups for the backups of the databases (D24). "-":
+# the service also starts when the standard tier is not mounted.
+ReadWritePaths=/var/lib/nidaos /run/nidaos -/var/nida/standard/backups
 ProtectHome=yes
 PrivateTmp=yes
 ProtectKernelTunables=yes

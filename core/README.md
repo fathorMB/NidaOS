@@ -48,6 +48,9 @@ go test ./...      # run the tests
 | `NIDA_CORE_REGISTRY` | `localhost:5000` | The local registry. A deploy accepts only an image from it (decision D21). |
 | `NIDA_CORE_CA_DIR` | `/var/lib/nidaos/ca` | The certificate authority of NidaOS and the certificate of the app addresses (decision D20). |
 | `NIDA_CORE_MDNS` | `on` | `off` stops the announcement of the app names on the home network. |
+| `NIDA_CORE_DB_FILE` | `/var/lib/nidaos/databases.json` | The databases and their passwords (mode 0600). `off` removes the database hosting. |
+| `NIDA_CORE_DB_BACKUP_DIR` | `/var/nida/standard/backups` | The backups of the databases (decision D24). |
+| `NIDA_CORE_DB_IMAGES` | `17=docker.io/library/postgres:17.7-alpine,18=docker.io/library/postgres:18.1-alpine` | The image of each PostgreSQL version (decision D23). A newer image makes a minor update available. |
 
 To run the service on a development computer, use the copy of a NidaOS host in the tests:
 
@@ -75,6 +78,7 @@ The full description of the API, for the persons that make an interface, is in [
 | `GET /api/v1/logs/search` | A search in the log lines of the last 30 days. |
 | `/api/v1/apps/...` | The apps: add, change, deploy, rollback, secrets, move of a folder, remove (milestone M-03). |
 | `GET /api/v1/ca.crt` | The certificate of the NidaOS authority, to install on a device. No sign-in. |
+| `/api/v1/databases/...` | The databases: add, connect an app, home network, backups, restore, update, remove (milestone M-04). |
 
 ## Live metrics
 
@@ -208,6 +212,13 @@ export NIDA_SERVER=http://nida.local:8470 NIDA_TOKEN=nida_...
 | `nida app move NAME FOLDER TIER --wait` | Move a folder to the other storage tier. The app stops during the copy. |
 | `nida app remove NAME --yes` | Remove an app and the files of its folders. |
 | `nida ca` | The certificate of the NidaOS authority. `--fingerprint` gives its fingerprint. |
+| `nida db add NAME --wait` | Add a PostgreSQL database. Also `--version 17`, `--tier standard`, `--size 10G`, `--memory 512M`, `--restore DB/BACKUP`. |
+| `nida db list`, `nida db show NAME` | The databases, their state, their size and their connections. |
+| `nida db link NAME APP [--ro]` | Connect an app. It gets `DATABASE_URL` and the `PG*` variables. |
+| `nida db lan NAME on` | Open the database to the home network, with TLS. `nida db connection NAME` gives the connection. |
+| `nida db backup NAME --wait`, `nida db backups NAME` | Make a backup now, and list the backups. |
+| `nida db update NAME --wait` | The newest minor version, with a backup first. |
+| `nida db remove NAME --yes` | Remove a database and its data. The backups stay. |
 | `nida version` | The version of `nida` and of `nida-core`. |
 
 The log commands accept `--source` (for example `pod/apps`), `--level` (`warning` gives the warnings and the errors) and `-q` (a text). `--json` before the command writes the JSON of the API: for the live commands, one JSON object on each line.

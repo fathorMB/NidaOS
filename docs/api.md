@@ -41,7 +41,7 @@ curl --unix-socket /run/nidaos/core.sock http://nida/api/v1/state
 | --- | --- |
 | `/healthz`, `/readyz`, `/api/v1/health`, `/api/v1/auth/status`, `/api/v1/auth/login`, `/api/v1/ca.crt` | Open. No identity is necessary. |
 | `/api/v1/auth/logout`, `/api/v1/auth/me` | Each identity. |
-| `/api/v1/tokens`, `/api/v1/tokens/{id}`, `/api/v1/auth/password` | The level `admin`. |
+| `/api/v1/tokens`, `/api/v1/tokens/{id}`, `/api/v1/auth/password`, `GET /api/v1/databases/{name}/connection` | The level `admin`. |
 | Each other `GET` | The level `read` or `admin`. |
 | Each other method | The level `admin`. |
 
@@ -105,6 +105,13 @@ Each error has this body:
 | 409 | `no_version` | The app has no version in operation (for a restart). |
 | 503 | `apps_not_ready` | k3s is not ready. Try again after some seconds. |
 | 500 | `app_failed` | An internal problem of an app operation. |
+| 404 | `database_not_found`, `link_not_found`, `backup_not_found` | The database, the link or the backup does not exist. |
+| 409 | `database_exists` | A database with this name exists. |
+| 409 | `database_busy` | The database is not ready, or an operation on it is in progress. |
+| 409 | `app_linked`, `name_in_use` | The app is connected already, or it uses a name of the connection. |
+| 409 | `no_port`, `no_update`, `sessions_remain` | No free port for the home network, no newer minor version, or open sessions of the app. |
+| 503 | `databases_not_ready` | k3s is not ready. Try again after some seconds. |
+| 500 | `database_failed` | An internal problem of a database operation. |
 
 ## 4. The paths
 
@@ -121,6 +128,7 @@ Each error has this body:
 | `GET /api/v1/tokens`, `POST /api/v1/tokens`, `DELETE /api/v1/tokens/{id}` | 4.7 |
 | `/api/v1/apps`, `/api/v1/apps/{name}/...` | 4.8 |
 | `GET /api/v1/ca.crt`, `GET /api/v1/ca` | 4.9 |
+| `/api/v1/databases`, `/api/v1/databases/{name}/...` | 4.10 |
 
 ### 4.1 Health
 
@@ -526,6 +534,110 @@ Each app with a port has the address `https://<name>.nidaos.local` in the home n
 | `GET /api/v1/ca` | `read` | `{"fingerprint_sha256": "AB:CD:...", "download": "/api/v1/ca.crt"}`. Show the fingerprint, thus the person can compare it before the installation. |
 
 The authority can sign only names in `nidaos.local` (decision D20).
+
+### 4.10 Databases (milestone M-04)
+
+A managed database is a PostgreSQL server for the apps of the owner (decisions D13, D23 and D24). NidaOS makes it, makes the backups and connects it to the apps.
+
+| Method and path | Access | Result |
+| --- | --- | --- |
+| `GET /api/v1/databases` | `read` | `{"databases": [Database, ...], "versions": [17, 18]}`. |
+| `POST /api/v1/databases` | `admin` | `202` and the new Database in the state `creating` (section 4.10.2). |
+| `GET /api/v1/databases/{name}` | `read` | One Database. |
+| `DELETE /api/v1/databases/{name}` | `admin` | `204`. It disconnects the apps and deletes the database and **its data**. The backups stay. |
+| `GET /api/v1/databases/{name}/connection` | `admin` | The connection of the owner role, **with its password** (section 4.10.4). |
+| `POST /api/v1/databases/{name}/links` | `admin` | `200` and the Database. Body: `{"app": "shop", "mode": "rw"}` (section 4.10.3). |
+| `DELETE /api/v1/databases/{name}/links/{app}` | `admin` | `200` and the Database. |
+| `PUT /api/v1/databases/{name}/lan` | `admin` | `200` and the Database. Body: `{"on": true}` (section 4.10.4). |
+| `GET /api/v1/databases/{name}/backups` | `read` | `{"backups": [Backup, ...]}`, the newest first. |
+| `POST /api/v1/databases/{name}/backups` | `admin` | `202`. A backup on demand starts. |
+| `DELETE /api/v1/databases/{name}/backups/{backup}` | `admin` | `204`. |
+| `POST /api/v1/databases/{name}/update` | `admin` | `202` and the Database in the state `updating` (section 4.10.6). |
+
+#### 4.10.1 The Database object
+
+```json
+{
+  "name": "shop-db",
+  "version": 18,
+  "image": "docker.io/library/postgres:18.1-alpine",
+  "tier": "performance",
+  "size_bytes": 1073741824,
+  "cpu_millis": 100,
+  "memory_bytes": 268435456,
+  "state": "ready",
+  "lan": true,
+  "lan_port": 15432,
+  "links": [{"app": "shop-api", "mode": "rw", "role": "l_shop_api", "created": "2026-11-11T10:00:00Z"}],
+  "created": "2026-11-11T09:30:00Z",
+  "updated": "2026-11-11T10:00:00Z",
+  "update_available": "docker.io/library/postgres:18.2-alpine",
+  "address": "nidaos.local:15432",
+  "live": {"size_bytes": 8192000, "connections": 3, "transactions_per_second": 12.5, "observed": "2026-11-11T10:02:00Z"}
+}
+```
+
+| Field | Values |
+| --- | --- |
+| `state` | `creating`, `restoring`, `updating`, `ready` or `failed`. `reason` tells why the last operation failed. A failed update or backup keeps the state `ready` and writes `reason`. |
+| `size_bytes` | The declared size. The volume does not apply it: it is a soft limit. `live.size_bytes` is the real size. |
+| `links` | The connected apps. Each link has its own login role. |
+| `restore`, `update_to` | `omitempty`: the backup of a restore or the image of an update in progress. |
+| `update_available`, `address`, `live` | `omitempty`. |
+
+The live metrics (section 5.2) also have the databases: `databases: [{"name", "state", "size_bytes", "connections", "transactions_per_second", "observed"}]`. The service reads them each 10 seconds.
+
+#### 4.10.2 Add a database
+
+```json
+{"name": "shop-db", "version": 18, "tier": "performance", "size_bytes": 10737418240, "memory_bytes": 536870912, "cpu_millis": 250}
+```
+
+- Only `name` is necessary. The defaults: version 18, tier `performance`, 1 GiB, 256 MiB of memory, 0.1 processor.
+- `version` is 17 or 18.
+- To restore a backup into the new database, add `"restore_from": {"database": "shop-db", "backup": "20261111T030000Z-daily-pg17.dump"}`. The state is then `restoring`. The version must be the version of the backup or newer: this is the major update, for example from 17 to 18.
+- The response is `202`: read the database until its state is `ready` or `failed`.
+
+#### 4.10.3 Connect an app
+
+The app gets these secret variables: `DATABASE_URL`, `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD` and `PGSSLMODE`. Its copies start again. `DATABASE_URL` is for example:
+
+```text
+postgresql://l_shop_api:<password>@pg.nida-db-shop-db.svc.cluster.local:5432/shop_db?sslmode=require
+```
+
+- `mode` is `rw` (the default) or `ro`. With `rw`, each object that the app makes belongs to the owner role of the database.
+- The connection uses TLS. The app must not use `sslmode=verify-full`: the certificate is for `nidaos.local`.
+- An app can have one database. A variable or a secret of the app with one of these names gives `409 name_in_use`.
+- The app must try the connection again at its start: the network policy can need some seconds for a new copy.
+- A disconnect closes the open sessions of the app first.
+
+#### 4.10.4 The home network
+
+`PUT .../lan` with `{"on": true}` opens a port from 15432 to 15531 on the computer. The port accepts only TLS with a password. `GET .../connection` gives the connection of the owner role:
+
+```json
+{"host": "nidaos.local", "port": 15432, "database": "shop_db", "user": "shop_db_owner", "password": "...", "sslmode": "verify-full",
+ "url": "postgresql://shop_db_owner:...@nidaos.local:15432/shop_db?sslmode=verify-full", "lan": true, "note": "..."}
+```
+
+The client must have the certificate of the NidaOS authority (section 4.9) as its root certificate.
+
+#### 4.10.5 Backups
+
+```json
+{"database": "shop-db", "name": "20261111T030000Z-daily-pg18.dump", "kind": "daily", "created": "2026-11-11T03:00:00Z", "version": 18, "size_bytes": 81920}
+```
+
+- `kind` is `daily`, `manual` (on demand) or `update` (before an update).
+- NidaOS makes one `daily` backup each day after 03:00 and keeps the last 7. It keeps the last 5 `manual` and `update` backups.
+- A backup is a `pg_dump` file in `/var/nida/standard/backups/<database>` on the computer. Only root can read it.
+- The backups of a removed database stay. Delete them with `DELETE .../backups/{backup}`.
+- A backup on demand runs in the service. When it fails, `reason` of the database tells why.
+
+#### 4.10.6 Update the minor version
+
+`POST .../update` starts when `update_available` is set. NidaOS makes an `update` backup first, and stops when the backup fails. Then it changes the image. When the server does not start with the new image, the old image comes back and `reason` tells why.
 
 ## 5. The live streams
 

@@ -91,6 +91,17 @@ type Config struct {
 	// MDNS is false when the value of NIDA_CORE_MDNS is "off": then the
 	// service does not announce the app names on the home network.
 	MDNS bool
+
+	// DatabasesFile keeps the databases (milestone M-04). It is empty when
+	// the value is "off": then the service has no database hosting.
+	DatabasesFile string
+
+	// BackupDir keeps the backups of the databases (decision D24).
+	BackupDir string
+
+	// DatabaseImages gives the image of each PostgreSQL major version
+	// (decision D23).
+	DatabaseImages map[int]string
 }
 
 // Defaults of the configuration.
@@ -116,6 +127,10 @@ const (
 	DefaultAppsDomain     = "nidaos.local"
 	DefaultRegistry       = "localhost:5000"
 	DefaultCADir          = "/var/lib/nidaos/ca"
+	DefaultDatabasesFile  = "/var/lib/nidaos/databases.json"
+	DefaultBackupDir      = "/var/nida/standard/backups"
+	// DefaultDatabaseImages are the PostgreSQL images (decision D23).
+	DefaultDatabaseImages = "17=docker.io/library/postgres:17.7-alpine,18=docker.io/library/postgres:18.1-alpine"
 )
 
 // DefaultJournalctl is the default command for the journal.
@@ -151,6 +166,16 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 		Registry:        DefaultRegistry,
 		CADir:           DefaultCADir,
 		MDNS:            true,
+		DatabasesFile:   DefaultDatabasesFile,
+		BackupDir:       DefaultBackupDir,
+	}
+	images := DefaultDatabaseImages
+	if v := strings.TrimSpace(getenv(Prefix + "DB_IMAGES")); v != "" {
+		images = v
+	}
+	var err error
+	if cfg.DatabaseImages, err = parseImages(images); err != nil {
+		return Config{}, fmt.Errorf("%sDB_IMAGES: %w", Prefix, err)
 	}
 
 	if v := strings.TrimSpace(getenv(Prefix + "ADDR")); v != "" {
@@ -265,6 +290,16 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 	if v := strings.TrimSpace(getenv(Prefix + "MDNS")); v != "" {
 		cfg.MDNS = v != "off"
 	}
+	if v := strings.TrimSpace(getenv(Prefix + "DB_FILE")); v != "" {
+		if v == "off" {
+			cfg.DatabasesFile = ""
+		} else {
+			cfg.DatabasesFile = v
+		}
+	}
+	if v := strings.TrimSpace(getenv(Prefix + "DB_BACKUP_DIR")); v != "" {
+		cfg.BackupDir = v
+	}
 
 	return cfg, nil
 }
@@ -293,4 +328,18 @@ func parseSize(v string) (int64, error) {
 		return 0, fmt.Errorf("the value %q is not a size (for example 10G)", v)
 	}
 	return n * mul, nil
+}
+
+// parseImages reads "17=image,18=image".
+func parseImages(v string) (map[int]string, error) {
+	out := map[int]string{}
+	for _, part := range strings.Split(v, ",") {
+		k, img, ok := strings.Cut(strings.TrimSpace(part), "=")
+		n, err := strconv.Atoi(strings.TrimSpace(k))
+		if !ok || err != nil || n < 10 || strings.TrimSpace(img) == "" {
+			return nil, fmt.Errorf("the value %q is not valid: use for example 18=docker.io/library/postgres:18.1-alpine", part)
+		}
+		out[n] = strings.TrimSpace(img)
+	}
+	return out, nil
 }
