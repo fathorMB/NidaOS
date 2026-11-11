@@ -1,0 +1,7 @@
+/dev/sda3 /sysroot xfs rw,relatime 0 0
+composefs / overlay ro 0 0
+/dev/sda3 /etc xfs rw,relatime 0 0
+/dev/sda2 /boot ext4 rw,relatime 0 0
+/dev/sda1 /boot/efi vfat rw,relatime 0 0
+/dev/sdb1 /var/nida/performance xfs rw,relatime 0 0
+proc /proc proc rw 0 0

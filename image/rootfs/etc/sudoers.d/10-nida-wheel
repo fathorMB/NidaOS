@@ -1,0 +1,3 @@
+# Feasibility proof only: the administrators use sudo without a password.
+# The installer makes the user with an SSH key and no password.
+%wheel ALL=(ALL) NOPASSWD: ALL

@@ -1,0 +1,47 @@
+# One pod writes one file on each storage tier.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: proof-performance
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: nida-performance
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: proof-standard
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: nida-standard
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nida-storage-proof
+spec:
+  containers:
+    - name: writer
+      image: rancher/mirrored-library-busybox:1.37.0
+      command:
+        - sh
+        - -c
+        - echo performance > /performance/proof.txt && echo standard > /standard/proof.txt && sleep 3600
+      volumeMounts:
+        - name: performance
+          mountPath: /performance
+        - name: standard
+          mountPath: /standard
+  volumes:
+    - name: performance
+      persistentVolumeClaim:
+        claimName: proof-performance
+    - name: standard
+      persistentVolumeClaim:
+        claimName: proof-standard

@@ -1,0 +1,4 @@
+# NidaOS replaces the default storage of k3s with two storage tiers.
+# See /usr/share/nidaos/k3s/nida-storage.yaml.
+disable:
+  - local-storage

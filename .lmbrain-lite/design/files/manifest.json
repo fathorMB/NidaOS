@@ -1,0 +1,6 @@
+{
+  "title": "Files",
+  "description": "The file program of the desktop. It shows the storage tier of each folder and the app that uses it.",
+  "group": "desktop-files",
+  "themes": ["light", "dark"]
+}

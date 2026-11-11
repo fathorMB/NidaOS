@@ -1,0 +1,6 @@
+{
+  "title": "Installer",
+  "description": "The six steps of the NidaOS installer. The disk plan is the primary step.",
+  "group": "installer",
+  "themes": ["light", "dark"]
+}

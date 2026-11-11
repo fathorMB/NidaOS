@@ -1,0 +1,25 @@
+#!/bin/bash
+# Prepare the Remote Desktop Protocol (RDP) service of NidaOS.
+#
+# The script makes a TLS certificate for this computer one time. Then it
+# enables the RDP service of GNOME in system mode: the remote operator sees
+# the login screen.
+#
+# The script sets no user name and no password. The administrator sets them:
+#   sudo grdctl --system rdp set-credentials <user> <password>
+set -euo pipefail
+
+owner=gnome-remote-desktop
+dir=/var/lib/gnome-remote-desktop/nida-tls
+
+install -d -o "$owner" -g "$owner" -m 0700 "$dir"
+if [ ! -s "$dir/rdp.key" ] || [ ! -s "$dir/rdp.crt" ]; then
+    openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
+        -subj "/CN=$(hostname)" -keyout "$dir/rdp.key" -out "$dir/rdp.crt"
+    chown "$owner:$owner" "$dir/rdp.key" "$dir/rdp.crt"
+    chmod 0600 "$dir/rdp.key"
+fi
+
+grdctl --system rdp set-tls-key "$dir/rdp.key"
+grdctl --system rdp set-tls-cert "$dir/rdp.crt"
+grdctl --system rdp enable

@@ -1,0 +1,62 @@
+# NidaOS image recipe.
+# The base is Fedora in the image-based form (bootc).
+#
+# Build it with the source of the core service as a second context:
+#   podman build --build-context core=core -f image/Containerfile image
+
+# Build nida-core and nida (milestone M-02). The programs are static: they
+# need no library of the image.
+FROM docker.io/library/golang:1.26 AS core-build
+ARG NIDAOS_BUILD=dev
+WORKDIR /src
+COPY --from=core . .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
+        -ldflags "-s -w -X github.com/fathorMB/NidaOS/core/internal/version.Version=${NIDAOS_BUILD}" \
+        -o /out/nida-core . && \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath \
+        -ldflags "-s -w -X github.com/fathorMB/NidaOS/core/internal/version.Version=${NIDAOS_BUILD}" \
+        -o /out/nida ./cmd/nida
+
+FROM quay.io/fedora/fedora-bootc:45
+
+# hyperv-daemons lets a Hyper-V host read the IP address of the virtual machine.
+RUN dnf -y install hyperv-daemons && dnf clean all
+
+# A minimal GNOME desktop for monitoring. The operator connects to it from
+# Windows with Remote Desktop (RDP).
+RUN dnf -y install \
+    gdm \
+    gnome-shell \
+    gnome-remote-desktop \
+    gnome-system-monitor \
+    ptyxis \
+    openssl && \
+    dnf clean all
+
+# k3s is one program file. The version and the checksum are fixed.
+# /usr/local is not part of a bootc image, thus the file goes in /usr/bin.
+ARG K3S_VERSION=v1.37.2+k3s1
+ARG K3S_SHA256=265b3ee6a3198ef14033c63ef46cbb32370d83795199fb6d1b01f21575eddbda
+RUN curl -fsSL -o /usr/bin/k3s "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION/+/%2B}/k3s" && \
+    echo "${K3S_SHA256}  /usr/bin/k3s" | sha256sum -c - && \
+    chmod 0755 /usr/bin/k3s && \
+    ln -s k3s /usr/bin/kubectl
+
+COPY rootfs/ /
+
+# The core service and the nida command (milestone M-02).
+COPY --from=core-build /out/nida-core /out/nida /usr/bin/
+
+RUN chmod 0755 /usr/libexec/nidaos/nida-rdp-setup && \
+    systemctl enable k3s.service gdm.service nida-rdp-setup.service gnome-remote-desktop.service nida-core.service && \
+    systemctl set-default graphical.target
+
+# The build identifier. The update test builds the image two times with
+# different identifiers.
+ARG NIDAOS_BUILD=dev
+RUN echo "NIDAOS_BUILD=${NIDAOS_BUILD}" >> /usr/lib/nidaos/release
+
+# sudo refuses a rules file that other users can write.
+RUN chmod 0440 /etc/sudoers.d/10-nida-wheel
+
+RUN bootc container lint

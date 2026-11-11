@@ -1,0 +1,7 @@
+label: "NidaOS-Installer"
+grub2:
+  timeout: 5
+  entries:
+    - name: "Install NidaOS"
+      linux: "/images/pxeboot/vmlinuz inst.stage2=hd:LABEL=NidaOS-Installer inst.ks=file:/nida.ks inst.text console=ttyS0 console=tty0 selinux=0"
+      initrd: "/images/pxeboot/initrd.img"

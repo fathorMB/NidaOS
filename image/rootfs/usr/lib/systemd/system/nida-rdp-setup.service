@@ -1,0 +1,12 @@
+[Unit]
+Description=Prepare the Remote Desktop Protocol service of NidaOS
+After=systemd-tmpfiles-setup.service systemd-sysusers.service
+Before=gnome-remote-desktop.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/nidaos/nida-rdp-setup
+
+[Install]
+WantedBy=multi-user.target

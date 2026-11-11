@@ -1,0 +1,6 @@
+{
+  "title": "Logs",
+  "description": "The log program of the desktop. One stream for the system, the apps, the databases, the gateway and the agents.",
+  "group": "desktop-logs",
+  "themes": ["light", "dark"]
+}

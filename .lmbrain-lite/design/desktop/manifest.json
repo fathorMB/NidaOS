@@ -1,0 +1,6 @@
+{
+  "title": "Monitoring desktop",
+  "description": "The NidaOS desktop that the operator sees through Remote Desktop. The desktop is the monitor.",
+  "group": "desktop",
+  "themes": ["light", "dark"]
+}
