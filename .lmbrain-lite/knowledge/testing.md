@@ -39,6 +39,8 @@ The script prints one `PASS` or `FAIL` line for each check. The report of the fe
 - Give `curl` a time limit (`--max-time`): a port that drops the packets keeps it open with no limit.
 - The log of a running step is not visible on GitHub. When the step "Install and test in a virtual machine" takes more than 30 minutes, cancel the run and read the log. Before M-03 the limit was 15 minutes. The app checks of M-03 add some minutes: the registry image, four image builds and five deploys.
 - A command that waits in the VM (for example `nida app deploy --wait`) has `timeout` in front of it, thus a check cannot hang.
+- Do not keep a file of the test in `/tmp` of the VM when a check after a restart uses it: `/tmp` is empty after each start.
+- A deleted volume claim of k3s leaves its folder for some seconds: the provisioner deletes it with a helper pod. Use `retry` for a check of the folder.
 
 ## The core service in the VM
 

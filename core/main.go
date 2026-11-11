@@ -50,6 +50,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) > 0 {
 		cmd = args[0]
 	}
+	if cmd == "mdns-lookup" {
+		return runMDNSLookup(args[1:], stdout, stderr)
+	}
 	if len(args) > 1 {
 		fmt.Fprintf(stderr, "nida-core: too many arguments: %v\n", args)
 		return 2

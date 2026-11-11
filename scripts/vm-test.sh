@@ -329,10 +329,11 @@ nida_app() {
 }
 # page gives the page of an app at its https address, with the certificate
 # of the NidaOS authority. --resolve gives the address that mDNS gives to a
-# device of the home network.
+# device of the home network. The certificate is in the home folder of the
+# user: /tmp is empty after a restart of the system.
 page() {
     local app=$1 path=${2:-/}
-    "${SSH[@]}" "curl -sf --max-time 10 --cacert /tmp/nida-ca.crt --resolve $app.nidaos.local:443:$vm_ip https://$app.nidaos.local$path"
+    "${SSH[@]}" "curl -sf --max-time 10 --cacert nida-ca.crt --resolve $app.nidaos.local:443:$vm_ip https://$app.nidaos.local$path"
 }
 page_is() {
     [ "$(page "$1" "$2")" = "$3" ]
@@ -343,7 +344,7 @@ app_added() {
         nida_app "secret set hello TOKEN --value s3cret-vm" > /dev/null
 }
 ca_installed() {
-    "${SSH[@]}" "sudo nida ca > /tmp/nida-ca.crt && grep -q 'BEGIN CERTIFICATE' /tmp/nida-ca.crt"
+    "${SSH[@]}" "sudo nida ca > nida-ca.crt && grep -q 'BEGIN CERTIFICATE' nida-ca.crt"
 }
 mdns_answers() {
     [ "$("${SSH[@]}" nida-core mdns-lookup hello.nidaos.local)" = "$vm_ip" ]
@@ -403,7 +404,12 @@ expect "an app reaches an other app by its name" internal_name
 expect "the folder is on the standard disk" folder_on standard
 expect "the move of the folder to the performance tier passes" nida_app "move hello data performance --wait"
 expect "the folder is on the performance disk after the move" folder_on performance
-expect "the old folder on the standard disk is deleted" eval '! folder_on standard'
+# The storage provisioner deletes the old folder some seconds after the
+# claim, with a helper pod.
+no_folder_on() {
+    ! folder_on "$1"
+}
+expect "the old folder on the standard disk is deleted" retry 60 no_folder_on standard
 expect "the files of the folder stay after the move" retry 60 page_is hello /first 1
 {
     echo "## nida app list"
