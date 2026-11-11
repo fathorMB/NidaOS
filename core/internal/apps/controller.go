@@ -33,6 +33,9 @@ type Source interface {
 	Finish(name string, number int, state, reason string) error
 	// Secrets gives the secret values of an app.
 	Secrets(name string) map[string]string
+	// FinishMove writes the result of a move. An empty reason is a
+	// success.
+	FinishMove(name, folder, reason string) error
 }
 
 // Options is the configuration of the controller.
@@ -56,7 +59,10 @@ type Options struct {
 	// SyncEvery is the time between two reads of the state of the copies.
 	// The default is 5 seconds.
 	SyncEvery time.Duration
-	Logger    *slog.Logger
+	// MoveTimeout is the maximum time of the copy of a folder. The default
+	// is 6 hours.
+	MoveTimeout time.Duration
+	Logger      *slog.Logger
 }
 
 func (c *Options) defaults() {
@@ -74,6 +80,9 @@ func (c *Options) defaults() {
 	}
 	if c.SyncEvery <= 0 {
 		c.SyncEvery = 5 * time.Second
+	}
+	if c.MoveTimeout <= 0 {
+		c.MoveTimeout = 6 * time.Hour
 	}
 	if c.Logger == nil {
 		c.Logger = slog.New(slog.DiscardHandler)
@@ -147,8 +156,9 @@ func (c *Controller) Run(ctx context.Context) {
 
 func (c *Controller) startPending(ctx context.Context, wg *sync.WaitGroup) {
 	for _, app := range c.src.Apps() {
-		v, ok := app.Deploying()
-		if !ok {
+		v, deploying := app.Deploying()
+		f, moving := app.Moving()
+		if !deploying && !moving {
 			continue
 		}
 		c.mu.Lock()
@@ -169,7 +179,11 @@ func (c *Controller) startPending(ctx context.Context, wg *sync.WaitGroup) {
 				c.mu.Unlock()
 				c.Kick()
 			}()
-			c.Deploy(ctx, app, v)
+			if moving {
+				c.Move(ctx, app, f)
+			} else {
+				c.Deploy(ctx, app, v)
+			}
 		}()
 	}
 }

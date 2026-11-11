@@ -68,6 +68,23 @@ func (s *fakeSource) Finish(name string, number int, state, reason string) error
 	return nil
 }
 
+func (s *fakeSource) FinishMove(name, folder, reason string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	a := s.apps[name]
+	for i := range a.Folders {
+		if a.Folders[i].Name == folder {
+			if reason == "" {
+				a.Folders[i].Tier = a.Folders[i].MovingTo
+			}
+			a.Folders[i].MovingTo, a.Folders[i].MoveError = "", reason
+		}
+	}
+	s.apps[name] = a
+	s.results = append(s.results, "move: "+reason)
+	return nil
+}
+
 func (s *fakeSource) Secrets(name string) map[string]string {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -20,6 +20,10 @@ var (
 	ErrBusy = errors.New("a deploy of the app is in progress")
 	// ErrNoVersion: the app has no version in operation.
 	ErrNoVersion = errors.New("the app has no version in operation")
+	// ErrMoving: a move of a folder of the app is in progress.
+	ErrMoving = errors.New("a move of a folder of the app is in progress")
+	// ErrFolderNotFound: the folder does not exist.
+	ErrFolderNotFound = errors.New("the folder does not exist")
 )
 
 // fileData is the content of the apps file.
@@ -225,6 +229,9 @@ func (s *Store) Update(name string, ch Change) (App, int, error) {
 			if _, busy := a.Deploying(); busy {
 				return ErrBusy
 			}
+			if _, moving := a.Moving(); moving {
+				return ErrMoving
+			}
 			active, _ := a.Version(a.Active)
 			started = s.addVersion(a, Version{Image: active.Image, Commit: active.Commit, Summary: "settings change", Config: a.Config.clone()})
 		}
@@ -275,6 +282,9 @@ func (s *Store) Rollback(name string, number int) (Version, error) {
 		if _, busy := a.Deploying(); busy {
 			return ErrBusy
 		}
+		if _, moving := a.Moving(); moving {
+			return ErrMoving
+		}
 		old, ok := a.Version(number)
 		if !ok {
 			return fmt.Errorf("%w: the app keeps only the last %d versions", ErrVersionNotFound, KeepVersions)
@@ -308,6 +318,9 @@ func (s *Store) Deploy(name, image, commit, summary string) (Version, error) {
 	_, err := s.change(name, func(a *App) error {
 		if _, busy := a.Deploying(); busy {
 			return ErrBusy
+		}
+		if _, moving := a.Moving(); moving {
+			return ErrMoving
 		}
 		n := s.addVersion(a, Version{Image: image, Commit: commit, Summary: summary, Config: a.Config.clone()})
 		v, _ = a.Version(n)
@@ -433,4 +446,47 @@ func (s *Store) DeleteSecret(name, key string) error {
 		return err
 	}
 	return nil
+}
+
+// RequestMove asks the controller to move a folder to a different tier.
+// The app stops during the copy.
+func (s *Store) RequestMove(name, folder, tier string) (App, error) {
+	if err := ValidateTier("tier", tier); err != nil {
+		return App{}, err
+	}
+	return s.change(name, func(a *App) error {
+		if _, busy := a.Deploying(); busy {
+			return ErrBusy
+		}
+		if _, moving := a.Moving(); moving {
+			return ErrMoving
+		}
+		i := slices.IndexFunc(a.Folders, func(f Folder) bool { return f.Name == folder })
+		if i < 0 {
+			return ErrFolderNotFound
+		}
+		if a.Folders[i].Tier == tier {
+			return fieldErr("tier", "the folder is on the %s tier already", tier)
+		}
+		a.Folders[i].MovingTo, a.Folders[i].MoveError = tier, ""
+		return nil
+	})
+}
+
+// FinishMove writes the result of a move (the Source interface). An empty
+// reason is a success: the folder is on the new tier.
+func (s *Store) FinishMove(name, folder, reason string) error {
+	_, err := s.change(name, func(a *App) error {
+		i := slices.IndexFunc(a.Folders, func(f Folder) bool { return f.Name == folder })
+		if i < 0 {
+			return ErrFolderNotFound
+		}
+		f := &a.Folders[i]
+		if reason == "" {
+			f.Tier = f.MovingTo
+		}
+		f.MovingTo, f.MoveError = "", reason
+		return nil
+	})
+	return err
 }

@@ -79,6 +79,10 @@ type Folder struct {
 	// Tier is performance or standard.
 	Tier      string `json:"tier"`
 	SizeBytes int64  `json:"size_bytes"`
+	// MovingTo is the target tier of a move in progress.
+	MovingTo string `json:"moving_to,omitempty"`
+	// MoveError tells why the last move failed.
+	MoveError string `json:"move_error,omitempty"`
 }
 
 // Version is one deploy of the app.
@@ -139,6 +143,16 @@ func (a *App) Deploying() (Version, bool) {
 		}
 	}
 	return Version{}, false
+}
+
+// Moving gives the folder that the controller must move.
+func (a *App) Moving() (Folder, bool) {
+	for _, f := range a.Folders {
+		if f.MovingTo != "" {
+			return f, true
+		}
+	}
+	return Folder{}, false
 }
 
 // Folder gives the folder with the name.
