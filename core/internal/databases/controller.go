@@ -33,7 +33,17 @@ type Options struct {
 	// and between two syncs of the ready databases.
 	LoopInterval time.Duration
 	SyncEvery    time.Duration
-	Logger       *slog.Logger
+	// BackupDir keeps the backups (decision D24). Empty: no backups.
+	BackupDir string
+	// BackupHour is the hour (local time) of the daily backups. The
+	// default is 3.
+	BackupHour int
+	// KeepDaily and KeepManual are the numbers of backups that stay. The
+	// defaults are 7 and 5.
+	KeepDaily  int
+	KeepManual int
+	Now        func() time.Time
+	Logger     *slog.Logger
 }
 
 func (o *Options) defaults() {
@@ -48,6 +58,18 @@ func (o *Options) defaults() {
 	}
 	if o.SyncEvery <= 0 {
 		o.SyncEvery = 15 * time.Second
+	}
+	if o.BackupHour <= 0 || o.BackupHour > 23 {
+		o.BackupHour = 3
+	}
+	if o.KeepDaily <= 0 {
+		o.KeepDaily = 7
+	}
+	if o.KeepManual <= 0 {
+		o.KeepManual = 5
+	}
+	if o.Now == nil {
+		o.Now = time.Now
 	}
 	if o.Logger == nil {
 		o.Logger = slog.New(slog.DiscardHandler)
@@ -64,6 +86,7 @@ type Controller struct {
 	opts  Options
 
 	kick    chan struct{}
+	wg      sync.WaitGroup
 	mu      sync.Mutex
 	running map[string]bool
 }
@@ -95,18 +118,21 @@ func (c *Controller) Busy(db string) bool {
 func (c *Controller) Run(ctx context.Context) {
 	tick := time.NewTicker(c.opts.LoopInterval)
 	defer tick.Stop()
-	var wg sync.WaitGroup
-	defer wg.Wait()
-	var lastSync time.Time
+	defer c.wg.Wait()
+	var lastSync, lastBackup time.Time
 	for {
 		for _, d := range c.store.List() {
 			if d.Busy() {
-				c.start(ctx, &wg, d.Name, func(ctx context.Context) { c.operate(ctx, d) })
+				c.start(ctx, &c.wg, d.Name, func(ctx context.Context) { c.operate(ctx, d) })
 			}
 		}
 		if now := time.Now(); now.Sub(lastSync) >= c.opts.SyncEvery {
 			lastSync = now
 			c.Sync(ctx)
+		}
+		if now := time.Now(); now.Sub(lastBackup) >= time.Minute {
+			lastBackup = now
+			c.dailyBackups(ctx)
 		}
 		select {
 		case <-ctx.Done():
