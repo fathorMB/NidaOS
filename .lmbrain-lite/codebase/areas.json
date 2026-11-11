@@ -5,61 +5,107 @@
       "id": "cli",
       "name": "nida command",
       "description": "The nida command for the owner, the scripts and the agents.",
-      "patterns": ["core/cmd/**", "core/internal/client/**"]
+      "patterns": [
+        "core/cmd/**",
+        "core/internal/client/**"
+      ]
     },
     {
       "id": "api",
       "name": "HTTP API",
       "description": "The router, the access rules and the handlers of the API of nida-core.",
-      "patterns": ["core/internal/httpserver/**", "docs/api.md"]
+      "patterns": [
+        "core/internal/httpserver/**",
+        "docs/api.md"
+      ]
     },
     {
       "id": "auth",
       "name": "Sign-in and tokens",
       "description": "The owner password, the sessions, the tokens and the login limiter.",
-      "patterns": ["core/internal/auth/**"]
+      "patterns": [
+        "core/internal/auth/**"
+      ]
     },
     {
       "id": "logs",
       "name": "Live logs",
       "description": "The journal and pod readers, the log pipeline and the log store with the search.",
-      "patterns": ["core/internal/logs/**"]
+      "patterns": [
+        "core/internal/logs/**"
+      ]
     },
     {
       "id": "metrics",
       "name": "Live metrics",
       "description": "The sampler of the host and workload metrics, and the stream hub.",
-      "patterns": ["core/internal/metrics/**", "core/internal/stream/**"]
+      "patterns": [
+        "core/internal/metrics/**",
+        "core/internal/stream/**"
+      ]
     },
     {
       "id": "state",
       "name": "Computer state",
       "description": "The host, the disks and the storage tiers.",
-      "patterns": ["core/internal/system/**"]
+      "patterns": [
+        "core/internal/system/**"
+      ]
+    },
+    {
+      "id": "hosting",
+      "name": "App hosting",
+      "description": "The app controller, the app store, the deploys, the folders and the internal names (M-03).",
+      "patterns": [
+        "core/internal/apps/**",
+        "tests/hello-app/**"
+      ]
+    },
+    {
+      "id": "addresses",
+      "name": "App addresses",
+      "description": "The certificate authority of NidaOS and the mDNS responder (decisions D19 and D20).",
+      "patterns": [
+        "core/internal/ca/**",
+        "core/internal/mdns/**"
+      ]
     },
     {
       "id": "core-service",
       "name": "Core service",
       "description": "The start of nida-core, its configuration, the local socket and the version.",
-      "patterns": ["core/*", "core/internal/config/**", "core/internal/version/**"]
+      "patterns": [
+        "core/*",
+        "core/internal/config/**",
+        "core/internal/version/**"
+      ]
     },
     {
       "id": "image",
       "name": "Operating system image",
       "description": "The bootc image of NidaOS, its files and its services.",
-      "patterns": ["image/**"]
+      "patterns": [
+        "image/**"
+      ]
     },
     {
       "id": "installer",
       "name": "Installer",
       "description": "The installer ISO and the disk plan.",
-      "patterns": ["installer/**"]
+      "patterns": [
+        "installer/**"
+      ]
     },
     {
       "id": "test-rig",
       "name": "Test rig",
       "description": "The VM test, the local test and the CI workflows.",
-      "patterns": ["scripts/**", "tests/**", "vm/**", ".github/**"]
+      "patterns": [
+        "scripts/**",
+        "tests/**",
+        "vm/**",
+        ".github/**"
+      ]
     }
   ],
   "categories": {
