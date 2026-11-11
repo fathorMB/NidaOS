@@ -1,0 +1,7 @@
+# k3s pulls the images "localhost:5000/..." from the local registry of
+# NidaOS (decision D21). The registry has no TLS, because it listens only
+# on 127.0.0.1 of the computer.
+mirrors:
+  "localhost:5000":
+    endpoint:
+      - "http://127.0.0.1:5000"

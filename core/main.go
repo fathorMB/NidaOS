@@ -29,6 +29,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fathorMB/NidaOS/core/internal/apps"
 	"github.com/fathorMB/NidaOS/core/internal/auth"
 	"github.com/fathorMB/NidaOS/core/internal/config"
 	"github.com/fathorMB/NidaOS/core/internal/httpserver"
@@ -111,6 +112,25 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 		logger.Warn("the owner password is not set: set it with nida-core set-password")
 	}
 
+	// The app hosting (milestone M-03). The controller starts when k3s is
+	// ready.
+	appsDone := make(chan struct{})
+	if cfg.AppsFile != "" {
+		appStore, err := apps.OpenStore(cfg.AppsFile)
+		if err != nil {
+			logger.Error("the apps file is not available: the service has no app hosting", "err", err)
+			close(appsDone)
+		} else {
+			runner := apps.NewRunner(appStore, cfg.Kubeconfig, apps.Options{Domain: cfg.AppsDomain, Logger: logger})
+			go func() {
+				runner.Run(ctx)
+				close(appsDone)
+			}()
+		}
+	} else {
+		close(appsDone)
+	}
+
 	pipeline := logs.NewPipeline(cfg.LogBufferLines)
 	deps := httpserver.Deps{
 		Auth:    authStore,
@@ -161,6 +181,7 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 		stopAll() // also when the server stops with an error
 		<-sourcesDone
 		<-storeDone
+		<-appsDone
 	}()
 
 	router := httpserver.NewRouter(deps)
