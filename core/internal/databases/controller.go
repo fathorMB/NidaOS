@@ -449,11 +449,7 @@ func (c *Controller) Remove(ctx context.Context, db string) error {
 	return err
 }
 
-// restore and update come in the tasks T-06 and T-07.
-func (c *Controller) restore(ctx context.Context, d Database) error {
-	return errors.New("the restore is not available yet")
-}
-
+// update comes in the task T-07.
 func (c *Controller) update(ctx context.Context, d Database) error {
 	return errors.New("the update is not available yet")
 }
