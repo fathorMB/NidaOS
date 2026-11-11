@@ -136,3 +136,11 @@ The operator selected this on 2026-11-11 for M-05. NidaOS connects a runner only
 ## D28 — The runner pods get to the registry and the deploy only through the job endpoint
 
 The lead selected this on 2026-11-11 for M-05. The local registry and the API of nida-core do not accept connections from the pods. nida-core opens a second HTTP server on the bridge of the pod network (`10.42.0.1:8471`). Each runner pod gets a job token, and the token gives only the registry paths of its app, the deploy of an image of its app, and the state of its app. Reason: the code of a workflow comes from GitHub, thus a job must not change the other apps or the settings of NidaOS. M-11 can add TLS to this endpoint.
+
+## D29 — The console is at https://nidaos.local and its files are in nida-core
+
+The operator selected this on 2026-11-11 for M-06. The browser opens the console at `https://nidaos.local`, through the same HTTPS entry as the apps, with a certificate of the NidaOS authority (D20). The built files of the console are in the nida-core program, thus one update changes the console and the API together. The console and the API have the same origin, thus the session cookie and the same-site check work without changes. Reason: the password and the session never go in plain text on the home network. Each device must trust the NidaOS authority one time, as for the apps.
+
+## D30 — The console pages of the gateway and the agents come with their milestones
+
+The operator selected this on 2026-11-11 for M-06. M-06 makes the runners page. M-10 makes the gateway page and M-09 makes the agents page, with their real data. The menu of the console shows a page only when its part of NidaOS exists. Reason: a page without data has no use, and its design can change when the part is built.

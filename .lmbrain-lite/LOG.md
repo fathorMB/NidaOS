@@ -146,3 +146,7 @@ One line per action. Format: `timestamp | by:<who> | <target or -> | <kind> | <m
 2026-11-11T19:07 | by:lead | M-05 | status | active -> done: The nine tasks are complete, and run 43068421538 passed all 109 checks of the VM test.
 2026-11-11T19:07 | by:lead | M-05 | code-snapshot | Code snapshot: 14555 production lines, 5477 test lines, 158 tests, 128 source files.
 2026-11-11T19:07 | by:lead | M-05 | code-note | Wrote the code notes: 6 steps.
+2026-11-11T20:50 | by:lead | M-05 | note | The lead opened the pull request 4 (m05-runners to main) for the milestone M-05.
+2026-11-11T20:55 | by:lead | M-10/T-09 | task | added 'Make the gateway page of the console from the mockup, with the live state of the link'
+2026-11-11T20:55 | by:lead | M-09/T-07 | task | added 'Make the agents page of the console from the mockup, with the tokens, the rules and the record of the actions'
+2026-11-11T20:56 | by:lead | M-06 | decision | The operator selected https://nidaos.local for the console (D29) and moved the gateway and agents pages to M-10 and M-09 (D30); M-06 waits for the approval.

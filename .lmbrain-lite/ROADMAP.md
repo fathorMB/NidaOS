@@ -17,8 +17,8 @@ generated: true
 | 6 | M-06 | Web console | proposed | 0/10 | 0% |
 | 7 | M-07 | Installer with the disk planner | proposed | 0/10 | 0% |
 | 8 | M-08 | Monitoring desktop | proposed | 0/7 | 0% |
-| 9 | M-09 | Agent access | proposed | 0/6 | 0% |
-| 10 | M-10 | Internet gateway on a Raspberry Pi | proposed | 0/8 | 0% |
+| 9 | M-09 | Agent access | proposed | 0/7 | 0% |
+| 10 | M-10 | Internet gateway on a Raspberry Pi | proposed | 0/9 | 0% |
 | 11 | M-11 | Updates, rollback and security | proposed | 0/8 | 0% |
 | 12 | M-12 | Installation on the real computer | proposed | 0/6 | 0% |
 
