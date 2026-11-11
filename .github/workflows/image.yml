@@ -51,15 +51,14 @@ jobs:
       - name: Install the test tools
         run: |
           # The Azure mirror of Ubuntu is sometimes not available from the
-          # runner. Then the step uses the main archive of Ubuntu.
-          pkgs="qemu-system-x86 qemu-utils ovmf xorriso socat freerdp3-x11"
-          apt() { sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 "$@"; }
-          if ! (apt update && apt install -y --no-install-recommends $pkgs); then
-            echo "The mirror failed: use archive.ubuntu.com"
-            echo "http://archive.ubuntu.com/ubuntu/" | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
-            sudo sed -i 's#mirror+file:/etc/apt/apt-mirrors.txt#http://archive.ubuntu.com/ubuntu/#' /etc/apt/sources.list.d/*.sources 2>/dev/null || true
-            apt update && apt install -y --no-install-recommends $pkgs
-          fi
+          # runner (run 43051313619). The step uses the main archive.
+          sudo sed -i -e 's#mirror+file:/etc/apt/apt-mirrors.txt#http://archive.ubuntu.com/ubuntu/#' \
+            -e 's#http://azure.archive.ubuntu.com#http://archive.ubuntu.com#' \
+            /etc/apt/sources.list.d/*.sources /etc/apt/sources.list 2>/dev/null || true
+          grep -rh '^URIs\|^deb ' /etc/apt/sources.list.d/ /etc/apt/sources.list 2>/dev/null | sort -u || true
+          apt() { sudo timeout 900 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 "$@"; }
+          apt update
+          apt install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf xorriso socat freerdp3-x11
 
       - name: Build the image
         run: sudo podman build -t "$IMAGE:$IMAGE_TAG" --build-arg NIDAOS_BUILD=v1 --build-context core=core -f image/Containerfile image
