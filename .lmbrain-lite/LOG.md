@@ -80,3 +80,8 @@ One line per action. Format: `timestamp | by:<who> | <target or -> | <kind> | <m
 2026-11-11T09:11 | by:lead | - | code-snapshot | Code snapshot: 4679 production lines, 2494 test lines, 74 tests, 60 source files, 60 files with no area.
 2026-11-11T09:12 | by:lead | - | code-snapshot | Rebuilt the code history: 1 counted again, 1 mapped again, 1 skipped.
 2026-11-11T09:12 | by:lead | - | code-snapshot | Code snapshot: 4679 production lines, 2494 test lines, 74 tests, 60 source files.
+2026-11-11T09:12 | by:lead | M-02/T-09 | commit | bcfec89 adds docs/api.md and the area map.
+2026-11-11T09:12 | by:lead | M-02 | status | active -> done: All nine tasks are done. The VM test passes all 38 checks with nida-core in the image. The API description is in docs/api.md.
+2026-11-11T09:12 | by:lead | M-02 | code-snapshot | Code snapshot: 4679 production lines, 2494 test lines, 74 tests, 60 source files.
+2026-11-11T09:12 | by:lead | M-02 | code-note | Wrote the code notes: 5 steps.
+2026-11-11T09:12 | by:lead | M-02 | code-note | Wrote the code notes: 5 steps.
