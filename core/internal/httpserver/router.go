@@ -41,6 +41,10 @@ type Router struct {
 	dbs *DatabaseHosting
 	// runners is the GitHub runner part. Nil: no runner paths.
 	runners *RunnerHosting
+	// updates is the update part. Nil: no update paths.
+	updates *UpdateHosting
+	// console serves the web console. Nil: no console.
+	console http.Handler
 	// authority gives the certificate of the NidaOS authority.
 	authority CertSource
 	// auth checks the sessions and the tokens. Nil: no access check.
@@ -76,6 +80,12 @@ type Deps struct {
 	// Runners is the GitHub runner part (milestone M-05). Nil: no runner
 	// paths.
 	Runners *RunnerHosting
+	// Updates gives the versions of the system (milestone M-06). Nil: no
+	// update paths.
+	Updates *UpdateHosting
+	// Console serves the files of the web console (decision D29) for each
+	// GET out of /api/. Nil: no console.
+	Console http.Handler
 }
 
 // NewRouter makes the router with all the paths of the service.
@@ -91,6 +101,8 @@ func NewRouter(d Deps) *Router {
 		apps:      d.Apps,
 		dbs:       d.Databases,
 		runners:   d.Runners,
+		updates:   d.Updates,
+		console:   d.Console,
 		authority: d.Authority,
 		limiter:   auth.NewLimiter(),
 		started:   time.Now(),
@@ -113,6 +125,7 @@ func NewRouter(d Deps) *Router {
 	r.addAppRoutes()
 	r.addDatabaseRoutes()
 	r.addRunnerRoutes()
+	r.addUpdateRoutes()
 	r.mux.HandleFunc("/", r.noRoute)
 	return r
 }
@@ -157,7 +170,19 @@ func (r *Router) noRoute(w http.ResponseWriter, req *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "The path does not accept this method.")
 		return
 	}
+	if r.console != nil && consolePath(req) {
+		r.console.ServeHTTP(w, req)
+		return
+	}
 	writeError(w, http.StatusNotFound, "not_found", "The path does not exist.")
+}
+
+// consolePath tells if the web console serves the request: a GET out of
+// the API and the probes.
+func consolePath(req *http.Request) bool {
+	p := req.URL.Path
+	return safeMethod(req.Method) && req.Method != http.MethodOptions &&
+		p != "/api" && !strings.HasPrefix(p, "/api/") && p != "/healthz" && p != "/readyz"
 }
 
 // Error is the body of each error response.

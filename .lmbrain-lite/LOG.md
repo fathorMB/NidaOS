@@ -150,3 +150,5 @@ One line per action. Format: `timestamp | by:<who> | <target or -> | <kind> | <m
 2026-11-11T20:55 | by:lead | M-10/T-09 | task | added 'Make the gateway page of the console from the mockup, with the live state of the link'
 2026-11-11T20:55 | by:lead | M-09/T-07 | task | added 'Make the agents page of the console from the mockup, with the tokens, the rules and the record of the actions'
 2026-11-11T20:56 | by:lead | M-06 | decision | The operator selected https://nidaos.local for the console (D29) and moved the gateway and agents pages to M-10 and M-09 (D30); M-06 waits for the approval.
+2026-11-11T20:57 | by:operator | M-06 | status | proposed -> approved
+2026-11-11T20:57 | by:lead | M-06 | status | approved -> active: The operator approved M-06 with the decisions D29 and D30.

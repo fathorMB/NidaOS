@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strconv"
 	"strings"
@@ -85,6 +86,10 @@ func accessOf(req *http.Request) access {
 	case strings.HasPrefix(p, "/api/v1/databases/") && strings.HasSuffix(p, "/connection"):
 		// The connection has the password of the owner role.
 		return accessAdmin
+	case consolePath(req):
+		// The files of the web console are public. Its data come from
+		// the API, with the access rules of the API.
+		return accessPublic
 	case req.Method == http.MethodGet || req.Method == http.MethodHead:
 		return accessRead
 	}
@@ -192,11 +197,25 @@ func readJSON(w http.ResponseWriter, req *http.Request, v any) bool {
 	return true
 }
 
-// clientAddr gives the address of the client without the port.
+// podNetwork is the pod network of k3s. Traefik sends the requests of
+// the web console from it (decision D29).
+var podNetwork = netip.MustParsePrefix("10.42.0.0/16")
+
+// clientAddr gives the address of the client without the port. For a
+// request from the pod network (Traefik), it is the last address of
+// X-Forwarded-For: Traefik adds the address of the browser at the end.
 func clientAddr(req *http.Request) string {
 	host, _, err := net.SplitHostPort(req.RemoteAddr)
 	if err != nil {
-		return req.RemoteAddr
+		host = req.RemoteAddr
+	}
+	if ip, err := netip.ParseAddr(host); err == nil && podNetwork.Contains(ip.Unmap()) {
+		if xff := req.Header.Values("X-Forwarded-For"); len(xff) > 0 {
+			parts := strings.Split(xff[len(xff)-1], ",")
+			if last, err := netip.ParseAddr(strings.TrimSpace(parts[len(parts)-1])); err == nil {
+				return last.String()
+			}
+		}
 	}
 	return host
 }

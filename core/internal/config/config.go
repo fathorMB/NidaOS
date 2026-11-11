@@ -117,6 +117,12 @@ type Config struct {
 	// GitHub sends the browser back to it at the end of the setup.
 	PublicURL string
 
+	// ConsoleUpstream is the address of nida-core for Traefik (decision
+	// D29): the bridge of the pod network and the port of Addr. It is
+	// empty when the value is "off": then the console has no route at
+	// https://<AppsDomain>.
+	ConsoleUpstream string
+
 	// GitHubAPI and GitHubWeb are the addresses of GitHub.
 	GitHubAPI string
 	GitHubWeb string
@@ -160,9 +166,12 @@ const (
 	DefaultRunnersFile    = "/var/lib/nidaos/runners.json"
 	// DefaultJobAddr is the first address of the pod network of k3s: the
 	// bridge cni0 of the computer.
-	DefaultJobAddr    = "10.42.0.1:8471"
-	DefaultPublicURL  = "http://nidaos.local:8470"
-	DefaultNidaBinary = "/usr/bin/nida"
+	DefaultJobAddr = "10.42.0.1:8471"
+	// DefaultPublicURL is the web console (decision D29).
+	DefaultPublicURL = "https://nidaos.local"
+	// DefaultConsoleUpstream is nida-core on the bridge cni0.
+	DefaultConsoleUpstream = "10.42.0.1:8470"
+	DefaultNidaBinary      = "/usr/bin/nida"
 	// DefaultDatabaseImages are the PostgreSQL images (decision D23).
 	DefaultDatabaseImages = "17=docker.io/library/postgres:17.7-alpine,18=docker.io/library/postgres:18.1-alpine"
 )
@@ -205,6 +214,7 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 		RunnersFile:     DefaultRunnersFile,
 		JobAddr:         DefaultJobAddr,
 		PublicURL:       DefaultPublicURL,
+		ConsoleUpstream: DefaultConsoleUpstream,
 		NidaBinary:      DefaultNidaBinary,
 	}
 	images := DefaultDatabaseImages
@@ -353,6 +363,15 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 	}
 	if v := strings.TrimSpace(getenv(Prefix + "PUBLIC_URL")); v != "" {
 		cfg.PublicURL = strings.TrimSuffix(v, "/")
+	}
+	if v := strings.TrimSpace(getenv(Prefix + "CONSOLE_UPSTREAM")); v != "" {
+		if strings.EqualFold(v, "off") {
+			cfg.ConsoleUpstream = ""
+		} else if _, _, err := net.SplitHostPort(v); err != nil {
+			return Config{}, fmt.Errorf("%sCONSOLE_UPSTREAM: %w", Prefix, err)
+		} else {
+			cfg.ConsoleUpstream = v
+		}
 	}
 	cfg.GitHubAPI = strings.TrimSpace(getenv(Prefix + "GITHUB_API"))
 	cfg.GitHubWeb = strings.TrimSpace(getenv(Prefix + "GITHUB_WEB"))

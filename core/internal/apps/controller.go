@@ -65,8 +65,12 @@ type Options struct {
 	// TLS gives the server certificate (with its chain) and its key for
 	// the addresses of the apps (decision D20). Nil: Traefik keeps its own
 	// default certificate.
-	TLS    func() (certPEM, keyPEM []byte, err error)
-	Logger *slog.Logger
+	TLS func() (certPEM, keyPEM []byte, err error)
+	// ConsoleUpstream is the address of nida-core for Traefik, for
+	// example "10.42.0.1:8470". The web console is at https://<Domain>
+	// (decision D29). Empty: no route for the console.
+	ConsoleUpstream string
+	Logger          *slog.Logger
 }
 
 func (c *Options) defaults() {
@@ -142,7 +146,7 @@ func (c *Controller) Run(ctx context.Context) {
 	defer tick.Stop()
 	var wg sync.WaitGroup
 	defer wg.Wait()
-	var lastSync, lastTLS time.Time
+	var lastSync, lastTLS, lastConsole time.Time
 	for {
 		c.startPending(ctx, &wg)
 		if now := time.Now(); now.Sub(lastSync) >= c.cfg.SyncEvery {
@@ -154,6 +158,13 @@ func (c *Controller) Run(ctx context.Context) {
 				c.cfg.Logger.Warn("the controller cannot give the certificate to Traefik", "err", err)
 			} else {
 				lastTLS = now
+			}
+		}
+		if now := time.Now(); c.cfg.ConsoleUpstream != "" && c.cfg.Domain != "" && now.Sub(lastConsole) >= time.Minute {
+			if err := c.EnsureConsole(ctx); err != nil {
+				c.cfg.Logger.Warn("the controller cannot make the route of the web console", "err", err)
+			} else {
+				lastConsole = now
 			}
 		}
 		select {

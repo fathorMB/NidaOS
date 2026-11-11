@@ -95,7 +95,7 @@ func testController(t *testing.T, src Source) (*Controller, *fake.Clientset) {
 	t.Helper()
 	kube := fake.NewClientset()
 	scheme := runtime.NewScheme()
-	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, map[schema.GroupVersionResource]string{routeGVR: "IngressRouteList", tlsStoreGVR: "TLSStoreList"})
+	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, map[schema.GroupVersionResource]string{routeGVR: "IngressRouteList", tlsStoreGVR: "TLSStoreList", middlewareGVR: "MiddlewareList"})
 	c := New(src, kube, dyn, Options{
 		Domain:          "nidaos.local",
 		ProgressTimeout: 3 * time.Second,
