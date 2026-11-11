@@ -131,3 +131,5 @@ One line per action. Format: `timestamp | by:<who> | <target or -> | <kind> | <m
 2026-11-11T15:12 | by:lead | M-05 | status | approved -> active: The operator approved M-05 and selected an own GitHub App (D25), a new runner pod for each job with rootless BuildKit (D26), and private repositories only (D27).
 2026-11-11T15:14 | by:lead | M-05/T-08 | task | added 'Make the GitHub App of NidaOS with the manifest flow, and import an app for the tests'
 2026-11-11T15:14 | by:lead | M-05/T-09 | task | added 'Give the runner pods a job endpoint for the registry and the deploy, with a token for one job'
+2026-11-11T15:37 | by:lead | M-05 | commit | ed29dcd adds the GitHub client, the runner controller, the job endpoint, the API section 4.11 and the nida commands; all the unit tests pass.
+2026-11-11T15:37 | by:lead | M-05/T-07 | finding | The full flow of T-07 needs a GitHub App and a private test repository from the operator, with the secrets NIDA_TEST_GITHUB_APP_ID and NIDA_TEST_GITHUB_APP_KEY and the variable NIDA_TEST_GITHUB_REPO.

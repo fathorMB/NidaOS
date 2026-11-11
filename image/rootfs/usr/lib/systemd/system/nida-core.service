@@ -20,8 +20,7 @@ Environment=NIDA_CORE_ADDR=:8470
 
 # /run/nidaos for the local socket, /var/lib/nidaos for the auth file,
 # the log store, the apps file, the runners file, the certificate
-# authority and the disk
-# plan of the installer.
+# authority and the disk plan of the installer.
 RuntimeDirectory=nidaos
 RuntimeDirectoryMode=0755
 StateDirectory=nidaos
