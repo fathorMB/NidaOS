@@ -42,6 +42,9 @@ type Options struct {
 	// defaults are 7 and 5.
 	KeepDaily  int
 	KeepManual int
+	// StatsEvery is the time between two reads of the statistics. The
+	// default is 10 seconds.
+	StatsEvery time.Duration
 	Now        func() time.Time
 	Logger     *slog.Logger
 }
@@ -68,6 +71,9 @@ func (o *Options) defaults() {
 	if o.KeepManual <= 0 {
 		o.KeepManual = 5
 	}
+	if o.StatsEvery <= 0 {
+		o.StatsEvery = 10 * time.Second
+	}
 	if o.Now == nil {
 		o.Now = time.Now
 	}
@@ -89,6 +95,7 @@ type Controller struct {
 	wg      sync.WaitGroup
 	mu      sync.Mutex
 	running map[string]bool
+	stats   map[string]statsEntry
 }
 
 // NewController makes a controller. sql runs the SQL in the pods, and pod
@@ -96,7 +103,7 @@ type Controller struct {
 func NewController(store *Store, kube kubernetes.Interface, pod Executor, sql SQLRunner, opts Options) *Controller {
 	opts.defaults()
 	return &Controller{store: store, kube: kube, sql: sql, pod: pod, opts: opts,
-		kick: make(chan struct{}, 1), running: map[string]bool{}}
+		kick: make(chan struct{}, 1), running: map[string]bool{}, stats: map[string]statsEntry{}}
 }
 
 // Kick tells the loop that there is new work.
@@ -119,7 +126,7 @@ func (c *Controller) Run(ctx context.Context) {
 	tick := time.NewTicker(c.opts.LoopInterval)
 	defer tick.Stop()
 	defer c.wg.Wait()
-	var lastSync, lastBackup time.Time
+	var lastSync, lastBackup, lastStats time.Time
 	for {
 		for _, d := range c.store.List() {
 			if d.Busy() {
@@ -129,6 +136,10 @@ func (c *Controller) Run(ctx context.Context) {
 		if now := time.Now(); now.Sub(lastSync) >= c.opts.SyncEvery {
 			lastSync = now
 			c.Sync(ctx)
+		}
+		if now := time.Now(); now.Sub(lastStats) >= c.opts.StatsEvery {
+			lastStats = now
+			c.collectStats(ctx)
 		}
 		if now := time.Now(); now.Sub(lastBackup) >= time.Minute {
 			lastBackup = now

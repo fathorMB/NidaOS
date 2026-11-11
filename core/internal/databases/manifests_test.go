@@ -3,6 +3,7 @@ package databases
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -176,5 +177,27 @@ func TestRedact(t *testing.T) {
 	p := &Psql{Redact: func() []string { return []string{"s3cret"} }}
 	if got := p.scrub("password s3cret is wrong"); strings.Contains(got, "s3cret") {
 		t.Errorf("scrub: %q", got)
+	}
+}
+
+func TestLiveStatsRate(t *testing.T) {
+	r := newRig(t)
+	r.create(t, "shop-db")
+	clock := time.Date(2026, 11, 11, 10, 0, 0, 0, time.UTC)
+	r.c.opts.Now = func() time.Time { return clock }
+	tx := 1000
+	r.sql.rows = func(sql string) []string {
+		if strings.Contains(sql, "pg_database_size") {
+			return []string{"4096 2 " + strconv.Itoa(tx)}
+		}
+		return nil
+	}
+	ctx := context.Background()
+	r.c.collectStats(ctx)
+	clock, tx = clock.Add(10*time.Second), 1250
+	r.c.collectStats(ctx)
+	live := r.c.Live()
+	if len(live) != 1 || live[0].Stats.Connections != 2 || live[0].TransactionsPerSecond != 25 || live[0].State != StateReady {
+		t.Errorf("live %+v", live)
 	}
 }

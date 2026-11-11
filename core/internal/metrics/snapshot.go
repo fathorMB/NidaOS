@@ -16,6 +16,21 @@ type Snapshot struct {
 	IntervalSeconds float64    `json:"interval_seconds"`
 	Host            Host       `json:"host"`
 	Workloads       []Workload `json:"workloads"`
+	// Databases are the managed databases (milestone M-04). It is not there
+	// without databases.
+	Databases []Database `json:"databases,omitempty"`
+}
+
+// Database is the live state of one managed database. The service reads
+// it from the server each 10 seconds, thus it can be older than Time.
+type Database struct {
+	Name        string `json:"name"`
+	State       string `json:"state"`
+	SizeBytes   int64  `json:"size_bytes"`
+	Connections int    `json:"connections"`
+	// TransactionsPerSecond is the rate of the commits and the rollbacks.
+	TransactionsPerSecond float64   `json:"transactions_per_second"`
+	Observed              time.Time `json:"observed"`
 }
 
 // Host is the metrics of the computer.

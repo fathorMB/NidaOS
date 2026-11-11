@@ -17,6 +17,9 @@ type Sampler struct {
 	Hub      *stream.Hub[Snapshot]
 	Logger   *slog.Logger
 	Now      func() time.Time
+	// Databases gives the live state of the managed databases. Nil: no
+	// databases in the snapshots.
+	Databases func() []Database
 
 	r    reader
 	prev *raw
@@ -57,6 +60,9 @@ func (s *Sampler) Sample() bool {
 		return false
 	}
 	snap := diff(*prev, cur)
+	if s.Databases != nil {
+		snap.Databases = s.Databases()
+	}
 	s.seq++
 	snap.Seq = s.seq
 	s.Hub.Publish(snap)
