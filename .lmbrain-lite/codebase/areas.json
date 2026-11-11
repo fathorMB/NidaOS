@@ -62,6 +62,16 @@
       ]
     },
     {
+      "id": "databases",
+      "name": "Managed databases",
+      "description": "The PostgreSQL controller, the links, the backups, the restore and the updates (M-04).",
+      "patterns": [
+        "core/internal/databases/**",
+        "core/databases.go",
+        "tests/db-client/**"
+      ]
+    },
+    {
       "id": "addresses",
       "name": "App addresses",
       "description": "The certificate authority of NidaOS and the mDNS responder (decisions D19 and D20).",
