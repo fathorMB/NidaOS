@@ -13,7 +13,7 @@ generated: true
 | 2 | M-02 | Platform core: one service for state, live metrics and live logs | done | 9/9 | 100% |
 | 3 | M-03 | App hosting from GitHub repositories | done | 9/9 | 100% |
 | 4 | M-04 | Managed databases | done | 10/10 | 100% |
-| 5 | M-05 | GitHub runners and the deploy flow | active | 9/9 | 100% |
+| 5 | M-05 | GitHub runners and the deploy flow | done | 9/9 | 100% |
 | 6 | M-06 | Web console | proposed | 0/10 | 0% |
 | 7 | M-07 | Installer with the disk planner | proposed | 0/10 | 0% |
 | 8 | M-08 | Monitoring desktop | proposed | 0/7 | 0% |
@@ -52,7 +52,7 @@ generated: true
 
 ## M-05 — GitHub runners and the deploy flow
 
-- `status`: active
+- `status`: done
 - `priority`: 5
 - `file`: milestones/M-05.md
 - `outcome`: A push to a GitHub repository builds the app on NidaOS and puts it in operation. The source stays on GitHub.

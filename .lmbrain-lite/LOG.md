@@ -142,3 +142,7 @@ One line per action. Format: `timestamp | by:<who> | <target or -> | <kind> | <m
 2026-11-11T19:07 | by:lead | M-05/T-05 | task | done: The connect opens a pull request from nidaos/deploy-APP with the workflow file of the app. The VM test merged it, and the merge started the first deploy. — Make the pull request that adds the deploy workflow to a repository
 2026-11-11T19:07 | by:lead | M-05/T-06 | task | done: nida app jobs lists the jobs with their state and commit, and nida app job-log gives the GitHub log of a job. The API has the same data. — Show each deploy job with its log in the list of deploys
 2026-11-11T19:07 | by:lead | M-05/T-07 | task | done: Run 43068421538 passed all 109 checks. Two pushes to a private repository gave two versions of the app, built on NidaOS and in operation at their https address. — Test the flow from a push to an app in operation with a real GitHub repository
+2026-11-11T19:07 | by:lead | M-05 | commit | 6dc255a passes the full VM test of M-05 with run 43068421538; the M-05 work is on the branch m05-runners.
+2026-11-11T19:07 | by:lead | M-05 | status | active -> done: The nine tasks are complete, and run 43068421538 passed all 109 checks of the VM test.
+2026-11-11T19:07 | by:lead | M-05 | code-snapshot | Code snapshot: 14555 production lines, 5477 test lines, 158 tests, 128 source files.
+2026-11-11T19:07 | by:lead | M-05 | code-note | Wrote the code notes: 6 steps.

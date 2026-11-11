@@ -132,3 +132,7 @@ The operator selected this on 2026-11-11 for M-05. Each job gets a new runner po
 ## D27 — Runners only for private repositories
 
 The operator selected this on 2026-11-11 for M-05. NidaOS connects a runner only to a private repository. Reason: in a public repository, a stranger can open a pull request that changes the workflow and runs code on the runner. GitHub gives the same advice for self-hosted runners.
+
+## D28 — The runner pods get to the registry and the deploy only through the job endpoint
+
+The lead selected this on 2026-11-11 for M-05. The local registry and the API of nida-core do not accept connections from the pods. nida-core opens a second HTTP server on the bridge of the pod network (`10.42.0.1:8471`). Each runner pod gets a job token, and the token gives only the registry paths of its app, the deploy of an image of its app, and the state of its app. Reason: the code of a workflow comes from GitHub, thus a job must not change the other apps or the settings of NidaOS. M-11 can add TLS to this endpoint.
