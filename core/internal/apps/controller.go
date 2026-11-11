@@ -62,7 +62,11 @@ type Options struct {
 	// MoveTimeout is the maximum time of the copy of a folder. The default
 	// is 6 hours.
 	MoveTimeout time.Duration
-	Logger      *slog.Logger
+	// TLS gives the server certificate (with its chain) and its key for
+	// the addresses of the apps (decision D20). Nil: Traefik keeps its own
+	// default certificate.
+	TLS    func() (certPEM, keyPEM []byte, err error)
+	Logger *slog.Logger
 }
 
 func (c *Options) defaults() {
@@ -138,12 +142,19 @@ func (c *Controller) Run(ctx context.Context) {
 	defer tick.Stop()
 	var wg sync.WaitGroup
 	defer wg.Wait()
-	var lastSync time.Time
+	var lastSync, lastTLS time.Time
 	for {
 		c.startPending(ctx, &wg)
 		if now := time.Now(); now.Sub(lastSync) >= c.cfg.SyncEvery {
 			lastSync = now
 			c.Sync(ctx)
+		}
+		if now := time.Now(); c.cfg.TLS != nil && now.Sub(lastTLS) >= time.Minute {
+			if err := c.EnsureTLS(ctx); err != nil {
+				c.cfg.Logger.Warn("the controller cannot give the certificate to Traefik", "err", err)
+			} else {
+				lastTLS = now
+			}
 		}
 		select {
 		case <-ctx.Done():

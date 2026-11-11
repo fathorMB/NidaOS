@@ -31,9 +31,11 @@ import (
 
 	"github.com/fathorMB/NidaOS/core/internal/apps"
 	"github.com/fathorMB/NidaOS/core/internal/auth"
+	"github.com/fathorMB/NidaOS/core/internal/ca"
 	"github.com/fathorMB/NidaOS/core/internal/config"
 	"github.com/fathorMB/NidaOS/core/internal/httpserver"
 	"github.com/fathorMB/NidaOS/core/internal/logs"
+	"github.com/fathorMB/NidaOS/core/internal/mdns"
 	"github.com/fathorMB/NidaOS/core/internal/metrics"
 	"github.com/fathorMB/NidaOS/core/internal/system"
 	"github.com/fathorMB/NidaOS/core/internal/version"
@@ -61,7 +63,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runSetPassword(os.Stdin, stdout, stderr)
 	case "serve":
 	default:
-		fmt.Fprintf(stderr, "nida-core: unknown command %q (use serve, set-password or version)\n", cmd)
+		fmt.Fprintf(stderr, "nida-core: unknown command %q (use serve, set-password, mdns-lookup or version)\n", cmd)
 		return 2
 	}
 
@@ -121,11 +123,29 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 			logger.Error("the apps file is not available: the service has no app hosting", "err", err)
 			close(appsDone)
 		} else {
-			runner := apps.NewRunner(appStore, cfg.Kubeconfig, apps.Options{Domain: cfg.AppsDomain, Logger: logger})
+			opts := apps.Options{Domain: cfg.AppsDomain, Logger: logger}
+			// The certificate authority of the app addresses (D20).
+			authority, err := ca.Open(cfg.CADir, cfg.AppsDomain)
+			if err != nil {
+				logger.Error("the certificate authority is not available: the apps have the default certificate of Traefik", "err", err)
+			} else {
+				opts.TLS = authority.ServerCert
+				logger.Info("the certificate authority is ready", "fingerprint", authority.Fingerprint())
+			}
+			runner := apps.NewRunner(appStore, cfg.Kubeconfig, opts)
 			go func() {
 				runner.Run(ctx)
 				close(appsDone)
 			}()
+			// The names of the apps on the home network (D19).
+			if cfg.MDNS {
+				responder := &mdns.Responder{Names: func() []string { return appNames(appStore, cfg.AppsDomain) }, Logger: logger}
+				go func() {
+					if err := responder.Run(ctx); err != nil {
+						logger.Error("the mDNS responder is not available: the devices cannot find the app names", "err", err)
+					}
+				}()
+			}
 		}
 	} else {
 		close(appsDone)

@@ -95,7 +95,7 @@ func testController(t *testing.T, src Source) (*Controller, *fake.Clientset) {
 	t.Helper()
 	kube := fake.NewClientset()
 	scheme := runtime.NewScheme()
-	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, map[schema.GroupVersionResource]string{routeGVR: "IngressRouteList"})
+	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, map[schema.GroupVersionResource]string{routeGVR: "IngressRouteList", tlsStoreGVR: "TLSStoreList"})
 	c := New(src, kube, dyn, Options{
 		Domain:          "nidaos.local",
 		ProgressTimeout: 3 * time.Second,
@@ -300,5 +300,30 @@ func TestSyncAppliesTheCopies(t *testing.T) {
 	}
 	if st, ok := c.StatusOf("blog"); !ok || st.Copies != 0 {
 		t.Errorf("status %+v %v", st, ok)
+	}
+}
+
+func TestEnsureTLSGivesTheCertificateToTraefik(t *testing.T) {
+	c, kube := testController(t, newFakeSource())
+	cert, key := []byte("CERT"), []byte("KEY")
+	c.cfg.TLS = func() ([]byte, []byte, error) { return cert, key, nil }
+	ctx := context.Background()
+	if err := c.EnsureTLS(ctx); err != nil {
+		t.Fatal(err)
+	}
+	cert = []byte("NEW CERT")
+	if err := c.EnsureTLS(ctx); err != nil {
+		t.Fatal(err)
+	}
+	s, err := kube.CoreV1().Secrets(IngressNamespace).Get(ctx, TLSSecretName, metav1.GetOptions{})
+	if err != nil || string(s.Data["tls.crt"]) != "NEW CERT" || s.Type != corev1.SecretTypeTLS {
+		t.Fatalf("secret %+v %v", s, err)
+	}
+	st, err := c.dyn.Resource(tlsStoreGVR).Namespace(IngressNamespace).Get(ctx, "default", metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, _, _ := unstructured.NestedString(st.Object, "spec", "defaultCertificate", "secretName"); n != TLSSecretName {
+		t.Errorf("TLS store %v", st.Object)
 	}
 }

@@ -84,6 +84,13 @@ type Config struct {
 	// Registry is the local image registry (decision D21). A deploy accepts
 	// only an image from it.
 	Registry string
+
+	// CADir keeps the certificate authority of NidaOS (decision D20).
+	CADir string
+
+	// MDNS is false when the value of NIDA_CORE_MDNS is "off": then the
+	// service does not announce the app names on the home network.
+	MDNS bool
 }
 
 // Defaults of the configuration.
@@ -108,6 +115,7 @@ const (
 	DefaultKubeconfig     = "/etc/rancher/k3s/k3s.yaml"
 	DefaultAppsDomain     = "nidaos.local"
 	DefaultRegistry       = "localhost:5000"
+	DefaultCADir          = "/var/lib/nidaos/ca"
 )
 
 // DefaultJournalctl is the default command for the journal.
@@ -141,6 +149,8 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 		Kubeconfig:      DefaultKubeconfig,
 		AppsDomain:      DefaultAppsDomain,
 		Registry:        DefaultRegistry,
+		CADir:           DefaultCADir,
+		MDNS:            true,
 	}
 
 	if v := strings.TrimSpace(getenv(Prefix + "ADDR")); v != "" {
@@ -248,6 +258,12 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 	}
 	if v := strings.TrimSpace(getenv(Prefix + "REGISTRY")); v != "" {
 		cfg.Registry = strings.TrimSuffix(v, "/")
+	}
+	if v := strings.TrimSpace(getenv(Prefix + "CA_DIR")); v != "" {
+		cfg.CADir = v
+	}
+	if v := strings.TrimSpace(getenv(Prefix + "MDNS")); v != "" {
+		cfg.MDNS = v != "off"
 	}
 
 	return cfg, nil
