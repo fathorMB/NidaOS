@@ -258,9 +258,17 @@ owner_sign_in() {
         [ "$(http_code -X POST -H 'Content-Type: application/json' \
             -d "{\"password\":\"$owner_password\"}" "$CORE/api/v1/auth/login")" = 200 ]
 }
-no_group_no_socket() {
-    # The user nida is not in the group nida: the socket refuses it.
-    ! "${SSH[@]}" nida status > nida-no-group.log 2>&1 && grep -q 'group nida' nida-no-group.log
+owner_uses_socket() {
+    # The installer makes the user nida with its own group nida. Thus the
+    # owner opens the socket without sudo.
+    [ "$("${SSH[@]}" stat -c '%U:%G %a' /run/nidaos/core.sock)" = "root:nida 660" ] &&
+        "${SSH[@]}" nida status > nida-owner.log 2>&1
+}
+other_user_no_socket() {
+    # A user outside the group nida cannot open the socket.
+    "${SSH[@]}" "sudo useradd -M -s /sbin/nologin nida-other 2>/dev/null; true" &&
+        ! "${SSH[@]}" "sudo -u nida-other nida status" > nida-no-group.log 2>&1 &&
+        grep -q 'group nida' nida-no-group.log
 }
 metrics_stream() {
     # The live stream sends a new snapshot each 2 seconds.
@@ -281,7 +289,8 @@ expect "the log search finds the line in the store" retry 30 store_search
 expect "through the network, the API needs a sign-in" tcp_needs_sign_in
 expect "a read token gives the metrics but not the tokens" token_access
 expect "the owner signs in with the password from nida-core set-password" owner_sign_in
-expect "a user outside the group nida cannot open the local socket" no_group_no_socket
+expect "the owner uses nida through the local socket without sudo" owner_uses_socket
+expect "a user outside the group nida cannot open the local socket" other_user_no_socket
 {
     echo "## nida status"
     "${SSH[@]}" sudo nida status || true
