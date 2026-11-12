@@ -9,6 +9,7 @@ import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
+import Pango from 'gi://Pango';
 import St from 'gi://St';
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
@@ -80,7 +81,11 @@ function led(kind = '') {
 function card(title, note = '') {
     const box = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, style_class: 'nida-card', x_expand: true});
     const head = new St.BoxLayout();
-    head.add_child(label(title.toUpperCase(), 'nida-card-title'));
+    // The letter spacing of the title is not in the width that St measures:
+    // do not cut the title.
+    const t = label(title.toUpperCase(), 'nida-card-title');
+    t.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+    head.add_child(t);
     const n = label(note, 'nida-card-note');
     n.x_expand = true;
     n.x_align = Clutter.ActorAlign.END;
