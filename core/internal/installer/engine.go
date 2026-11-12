@@ -285,6 +285,12 @@ func (e *Engine) deployment() (etc, varDir string, err error) {
 }
 
 func (e *Engine) tiers(ctx context.Context, l *layout) error {
+	// bootc finalizes the file systems and leaves the root read-only.
+	// The installer writes the files of the plan, thus it mounts it
+	// read-write again.
+	if _, err := e.run(ctx, "mount", "-o", "remount,rw", e.Target); err != nil {
+		return err
+	}
 	etc, varDir, err := e.deployment()
 	if err != nil {
 		return err

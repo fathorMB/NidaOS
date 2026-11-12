@@ -18,7 +18,7 @@ UtmpIdentifier=tty1
 UtmpMode=user
 # cage shows one program in full screen. cog is a small browser (WPE
 # WebKit). The page waits for the installer itself.
-ExecStart=/usr/bin/cage -s -- /usr/bin/cog --platform=wl http://127.0.0.1/
+ExecStart=/usr/bin/cage -s -- /usr/bin/cog http://127.0.0.1/
 Restart=always
 RestartSec=3
 
