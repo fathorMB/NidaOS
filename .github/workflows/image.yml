@@ -120,6 +120,8 @@ jobs:
           (cd console && npx vite build --config vite.installer.config.ts)
           (cd core && go build -o ../out/nida-installer ./cmd/nida-installer)
           out/nida-installer --demo --addr 127.0.0.1:8090 > out/results/installer-demo.log 2>&1 &
+          demo=$!
+          trap 'kill $demo' EXIT
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:8090/api/state > /dev/null && break; sleep 1; done
           cd console
           NIDA_INSTALLER_URL=http://127.0.0.1:8090 NIDA_OUT="$GITHUB_WORKSPACE/out/results" \
