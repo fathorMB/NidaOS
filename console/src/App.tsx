@@ -5,6 +5,7 @@ import { BrowserRouter, NavLink, Navigate, Route, Routes } from 'react-router-do
 import { ApiError, get, onSignedOut, post, type Me } from './api';
 import { DataProvider, useData } from './data';
 import { LiveProvider, type SourceFactory } from './live';
+import { AgentsPage } from './pages/agents';
 import { AppNew, AppPage, AppsPage } from './pages/apps';
 import { DatabaseNew, DatabasePage, DatabasesPage } from './pages/databases';
 import { LogsPage } from './pages/logs';
@@ -132,12 +133,9 @@ function Nav({ onSignOut }: { onSignOut: () => void }) {
       {item('/storage', 'Storage')}
       {item('/logs', 'Logs')}
       {!d.updatesOff && item('/updates', 'Updates', update, true)}
-      {!d.runnersOff && (
-        <>
-          <h2>Access</h2>
-          {item('/runners', 'Runners', active)}
-        </>
-      )}
+      <h2>Access</h2>
+      {!d.runnersOff && item('/runners', 'Runners', active)}
+      {d.approvals !== undefined && item('/agents', 'Agents', d.approvals.length, d.approvals.length > 0)}
       <div className="foot">
         <div>
           Signed in as {who}
@@ -199,6 +197,7 @@ export function Shell({ onSignOut }: { onSignOut: () => void }) {
           <Route path="/logs" element={<LogsPage />} />
           <Route path="/updates" element={<UpdatesPage />} />
           <Route path="/runners" element={<RunnersPage />} />
+          <Route path="/agents" element={<AgentsPage />} />
           <Route path="/signin" element={<Navigate to="/" replace />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

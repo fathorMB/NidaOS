@@ -30,7 +30,7 @@ curl --unix-socket /run/nidaos/core.sock http://nida/api/v1/state
 | Kind | How to get it | Level |
 | --- | --- | --- |
 | `owner` | `POST /api/v1/auth/login` with the owner password. The response sets the cookie `nida_session`. | `admin` |
-| `token` | The header `Authorization: Bearer nida_...`. An `admin` makes the token with `POST /api/v1/tokens`. | `read` or `admin` |
+| `token` | The header `Authorization: Bearer nida_...`. An `admin` makes the token with `POST /api/v1/tokens`. | `read`, `admin` or `agent` (section 4.13) |
 | `local` | A request through the local socket. It needs no secret. | `admin` |
 
 - A browser interface uses the cookie. It does not keep a secret in JavaScript: the cookie is `HttpOnly` and `SameSite=Strict`.
@@ -126,6 +126,12 @@ Each error has this body:
 | 409 | `update_busy` | An update operation is in progress (section 4.12). |
 | 409 | `nothing_to_install` | No system version waits for a restart. |
 | 503 | `updates_unavailable` | The `bootc` command does not answer. |
+| 202 | `approval_required` | The rule of the agent token is `ask`: the owner must approve the request (section 4.13). This is not an error. |
+| 403 | `agent_rule` | The rule of the agent token is `deny` for this operation. |
+| 400 | `bad_rules` | The rules of an agent token are not correct. |
+| 404 | `approval_not_found` | The approval request does not exist, or it is of an other agent. |
+| 409 | `approval_not_pending` | The approval request is not pending. |
+| 500 | `approval_failed` | NidaOS did not keep the approval request. |
 
 ## 4. The paths
 
@@ -145,6 +151,7 @@ Each error has this body:
 | `/api/v1/databases`, `/api/v1/databases/{name}/...` | 4.10 |
 | `/api/v1/github/...`, `GET /api/v1/runners`, `/api/v1/apps/{name}/repository`, `/api/v1/apps/{name}/jobs`, `/api/v1/jobs/{id}` | 4.11 |
 | `GET /api/v1/updates`, `POST /api/v1/updates/check`, `/download`, `/restart`, `/rollback` | 4.12 |
+| `/api/v1/approvals`, `GET /api/v1/agents/actions`, `PATCH /api/v1/tokens/{id}`, `POST /api/v1/mcp` | 4.13 |
 
 ### 4.1 Health
 
@@ -824,6 +831,44 @@ The operations run in the service. Only one operation runs at a time: an other o
 | `rollback_queued` | `omitempty`: the next restart starts the `rollback` version. |
 | `busy` | `omitempty`: `checking`, `downloading`, `rolling_back` or `restarting`. |
 | `last_check`, `error` | `omitempty`: the time of the last check, and the cause of the last operation that failed. |
+
+### 4.13 Agents (milestone M-09)
+
+An agent token has the level `agent` and one rule for each class of operation (`docs/agents.md`): `allow`, `ask` or `deny`. The class `access` (tokens, password, GitHub App, approvals) is always `deny` for an agent.
+
+| Method and path | Access | Result |
+| --- | --- | --- |
+| `POST /api/v1/tokens` | `admin` | With `{"name": "laptop", "level": "agent", "agent": "Claude Code", "rules": {"delete": "deny"}}`: an agent token. A missing class gets its default. |
+| `PATCH /api/v1/tokens/{id}` | `admin` | `200` and the token. Body: `{"rules": {...}}`. The change applies at once. |
+| `GET /api/v1/approvals` | `read` | `{"approvals": [Approval, ...]}`, the newest first. Parameter `state`: `pending`, `done`, ... An agent sees only its requests. |
+| `GET /api/v1/approvals/{id}` | `read` | One Approval. |
+| `POST /api/v1/approvals/{id}/approve` | `admin`, not an agent | `200` and the Approval: NidaOS ran the request. |
+| `POST /api/v1/approvals/{id}/deny` | `admin`, not an agent | `200` and the Approval. Body (optional): `{"reason": "..."}`. |
+| `GET /api/v1/agents/actions` | `read` | `{"actions": [Action, ...]}`, the newest first. Parameters `token` and `limit` (default 200). An agent sees only its actions. |
+| `POST /api/v1/mcp` | each identity | The MCP server (Streamable HTTP transport): one JSON-RPC message in the body. A notification gets `202` without a body. |
+
+A request with the rule `ask` gets `202`:
+
+```json
+{"code": "approval_required", "message": "...", "approval": {"id": "a1b2c3d4e5f6", "summary": "Remove the app blog with its folders", "state": "pending", ...}}
+```
+
+The Approval object:
+
+```json
+{"id": "a1b2c3d4e5f6", "token_id": "k7q2mxa4bcdz", "token": "laptop", "agent": "Claude Code", "class": "delete",
+ "method": "DELETE", "path": "/api/v1/apps/blog", "summary": "Remove the app blog with its folders",
+ "state": "done", "created": "...", "decided": "...", "by": "owner:owner", "status": 204, "result": ""}
+```
+
+| `state` | Meaning |
+| --- | --- |
+| `pending` | The request waits for the owner. It expires after 24 hours. |
+| `approved` | The owner approved it. The request runs. |
+| `done`, `failed` | The request ran. `status` and `result` (at most 4 KiB) are the response. |
+| `denied`, `expired` | The request did not run. |
+
+The body of a request is never in the API. The Action object: `{"time", "token_id", "token", "agent", "class", "method", "path", "status", "approval", "outcome"}`. `outcome` is `done`, `failed`, `asked`, `refused` or `denied`.
 
 ## 5. The live streams
 

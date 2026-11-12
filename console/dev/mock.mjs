@@ -97,6 +97,20 @@ const updates = {
   last_check: before(3600e3),
 };
 
+const tokens = [
+  { id: 'tok1', name: 'laptop', level: 'agent', hint: 'nida_ab12', created: before(10 * 864e5), last_used: before(480_000), agent: 'Claude Code',
+    rules: { read: 'allow', apps: 'allow', databases: 'allow', delete: 'ask', updates: 'ask', secrets: 'ask' } },
+  { id: 'tok2', name: 'home-assistant', level: 'read', hint: 'nida_cd34', created: before(30 * 864e5) },
+];
+const approvals = [
+  { id: 'ap1', token_id: 'tok1', token: 'laptop', agent: 'Claude Code', class: 'delete', method: 'DELETE', path: '/api/v1/apps/photos',
+    summary: 'Remove the app photos with its folders', state: 'pending', created: before(120_000) },
+];
+const actions = [
+  { time: before(120_000), token_id: 'tok1', token: 'laptop', agent: 'Claude Code', class: 'delete', method: 'DELETE', path: '/api/v1/apps/photos', status: 202, approval: 'ap1', outcome: 'asked' },
+  { time: before(2_640_000), token_id: 'tok1', token: 'laptop', agent: 'Claude Code', class: 'apps', method: 'PATCH', path: '/api/v1/apps/shop-web', status: 200, outcome: 'done' },
+];
+
 const pool = [
   ['info', 'pod', 'nida-app-shop-web', 'web', 'GET / 200 in 8 ms'],
   ['info', 'pod', 'nida-db-orders-db', 'postgres', 'checkpoint complete: wrote 96 buffers'],
@@ -218,6 +232,34 @@ async function api(req, res, url) {
     return json(res, 202, d);
   }
   if (p === '/api/v1/runners') return json(res, 200, runners);
+  if (p === '/api/v1/tokens' && m === 'GET') return json(res, 200, { tokens });
+  if (p === '/api/v1/tokens' && m === 'POST') {
+    const b = await readBody(req);
+    const t = { id: 'tok' + (tokens.length + 1), name: b.name, level: b.level, hint: 'nida_new1', created: now(), agent: b.agent, rules: b.rules };
+    tokens.push(t);
+    return json(res, 201, { ...t, secret: 'nida_mock_secret_for_the_test' });
+  }
+  let t = /^\/api\/v1\/tokens\/([^/]+)$/.exec(p);
+  if (t) {
+    const tk = tokens.find((x) => x.id === t[1]);
+    if (!tk) return err(res, 404, 'token_not_found', 'The token does not exist.');
+    if (m === 'PATCH') { tk.rules = { ...tk.rules, ...(await readBody(req)).rules }; return json(res, 200, tk); }
+    if (m === 'DELETE') { tokens.splice(tokens.indexOf(tk), 1); return json(res, 204); }
+  }
+  if (p === '/api/v1/approvals') {
+    const st = url.searchParams.get('state');
+    return json(res, 200, { approvals: approvals.filter((a) => !st || a.state === st) });
+  }
+  t = /^\/api\/v1\/approvals\/([^/]+)\/(approve|deny)$/.exec(p);
+  if (t && m === 'POST') {
+    const a = approvals.find((x) => x.id === t[1]);
+    if (!a) return err(res, 404, 'approval_not_found', 'The approval request does not exist.');
+    if (a.state !== 'pending') return err(res, 409, 'approval_not_pending', 'The approval request is not pending.');
+    Object.assign(a, t[2] === 'approve' ? { state: 'done', status: 204 } : { state: 'denied' }, { decided: now(), by: 'owner:owner' });
+    actions.unshift({ time: now(), token_id: a.token_id, token: a.token, agent: a.agent, class: a.class, method: a.method, path: a.path, status: a.status ?? 403, approval: a.id, outcome: t[2] === 'approve' ? 'done' : 'denied' });
+    return json(res, 200, a);
+  }
+  if (p === '/api/v1/agents/actions') return json(res, 200, { actions });
   if (p === '/api/v1/updates') return json(res, 200, updates);
   if (p.startsWith('/api/v1/updates/')) return json(res, 202, updates);
   if (/^\/api\/v1\/jobs\/\d+\/log$/.test(p)) { res.writeHead(200, { 'Content-Type': 'text/plain' }); return res.end('2026-11-11T20:00:00Z Build and deploy on NidaOS\n#1 [internal] load build definition\n#9 DONE 12.1s\nThe deploy passed: version 4 is in operation.\n'); }

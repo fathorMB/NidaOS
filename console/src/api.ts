@@ -359,3 +359,49 @@ export interface Updates {
   last_check?: string;
   error?: string;
 }
+
+// ---- Agents (section 4.13) ----
+
+export type Rule = 'allow' | 'ask' | 'deny';
+
+export interface Token {
+  id: string;
+  name: string;
+  level: 'read' | 'admin' | 'agent';
+  hint: string;
+  created: string;
+  last_used?: string;
+  agent?: string;
+  rules?: Record<string, Rule>;
+}
+
+export interface Approval {
+  id: string;
+  token_id: string;
+  token: string;
+  agent: string;
+  class: string;
+  method: string;
+  path: string;
+  summary: string;
+  reason?: string;
+  state: 'pending' | 'approved' | 'denied' | 'done' | 'failed' | 'expired';
+  created: string;
+  decided?: string;
+  by?: string;
+  status?: number;
+  result?: string;
+}
+
+export interface AgentAction {
+  time: string;
+  token_id: string;
+  token: string;
+  agent: string;
+  class: string;
+  method: string;
+  path: string;
+  status: number;
+  approval?: string;
+  outcome: 'done' | 'failed' | 'asked' | 'refused' | 'denied';
+}

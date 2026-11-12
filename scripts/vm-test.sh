@@ -889,6 +889,69 @@ fi
     echo
 } | tee -a report.txt
 
+echo "==> Examine the agent access (M-09)"
+# An agent token with the default rules: the reads and the app changes run,
+# a remove waits for the owner. The MCP server is at /api/v1/mcp.
+sock_api() {
+    # $1 method, $2 path, $3 body (optional): through the local socket.
+    "${SSH[@]}" "sudo curl -s --max-time 30 --unix-socket /run/nidaos/core.sock -X $1 -H 'Content-Type: application/json' ${3:+-d '$3'} http://nida$2"
+}
+agent_token=""
+mcp_call() {
+    # $1 the JSON-RPC message. The agent calls nida-core in the VM.
+    "${SSH[@]}" "curl -s --max-time 60 -H 'Authorization: Bearer $agent_token' -H 'Content-Type: application/json' -d '$1' http://127.0.0.1:8470/api/v1/mcp"
+}
+agent_token_made() {
+    agent_token=$(sock_api POST /api/v1/tokens '{"name":"vm-agent","level":"agent","agent":"VM test"}' |
+        sed -n 's/.*"secret":"\(nida_[a-z0-9]*\)".*/\1/p')
+    [ -n "$agent_token" ] && sock_api POST /api/v1/apps '{"name":"agent-test"}' | grep -q '"name":"agent-test"'
+}
+mcp_initialize() {
+    mcp_call '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}' > mcp-init.json &&
+        grep -q '"instructions"' mcp-init.json &&
+        mcp_call '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | grep -q '"app_remove"'
+}
+mcp_reads() {
+    mcp_call '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"apps_list","arguments":{}}}' > mcp-apps.json &&
+        grep -q 'agent-test' mcp-apps.json && grep -q '"isError":false' mcp-apps.json
+}
+approval_id=""
+mcp_remove_asks() {
+    mcp_call '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"app_remove","arguments":{"name":"agent-test"}}}' > mcp-remove.json &&
+        grep -q 'approval request' mcp-remove.json &&
+        approval_id=$(sock_api GET '/api/v1/approvals?state=pending' | sed -n 's/.*"id":"\([0-9a-f]\{12\}\)".*/\1/p' | head -n1) &&
+        [ -n "$approval_id" ] && sock_api GET /api/v1/apps/agent-test | grep -q '"name":"agent-test"'
+}
+owner_approves() {
+    sock_api POST "/api/v1/approvals/$approval_id/approve" > approval.json &&
+        grep -q '"state":"done"' approval.json &&
+        sock_api GET /api/v1/apps/agent-test | grep -q '"code":"app_not_found"'
+}
+agent_rule_deny() {
+    local id
+    id=$(sock_api GET /api/v1/tokens | python3 -c 'import json,sys; print([t["id"] for t in json.load(sys.stdin)["tokens"] if t["name"]=="vm-agent"][0])') &&
+        sock_api PATCH "/api/v1/tokens/$id" '{"rules":{"updates":"deny"}}' | grep -q '"updates":"deny"' &&
+        mcp_call '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"update_check","arguments":{}}}' > mcp-deny.json &&
+        grep -q '"isError":true' mcp-deny.json && grep -q 'rules of this agent token' mcp-deny.json
+}
+agent_record() {
+    sock_api GET /api/v1/agents/actions > agent-actions.json &&
+        grep -q '"outcome":"asked"' agent-actions.json && grep -q '"outcome":"done"' agent-actions.json &&
+        grep -q '"outcome":"refused"' agent-actions.json
+}
+expect "the owner makes an agent token through the local socket" agent_token_made
+expect "the MCP server answers initialize and lists the tools" mcp_initialize
+expect "an agent reads the apps with an MCP tool" mcp_reads
+expect "an agent remove waits for the approval of the owner" mcp_remove_asks
+expect "the approval of the owner runs the request of the agent" owner_approves
+expect "a deny rule refuses the operation of the agent" agent_rule_deny
+expect "the record has the actions of the agent" agent_record
+{
+    echo "## agent actions"
+    cat agent-actions.json 2>/dev/null | head -c 2000 || true
+    echo
+} | tee -a report.txt
+
 echo "==> Examine the desktop and the RDP service"
 rdp_password=$(head -c 18 /dev/urandom | base64 | tr -d '/+=')
 rdp_listens() {
