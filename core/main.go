@@ -30,6 +30,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fathorMB/NidaOS/core/internal/agents"
 	"github.com/fathorMB/NidaOS/core/internal/apps"
 	"github.com/fathorMB/NidaOS/core/internal/auth"
 	"github.com/fathorMB/NidaOS/core/internal/ca"
@@ -202,6 +203,14 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 	}
 	// The web console (decision D29).
 	deps.Console = console.New()
+	// The approval requests and the record of the agents (M-09).
+	if cfg.AgentsFile != "" {
+		if store, err := agents.Open(cfg.AgentsFile); err != nil {
+			logger.Error("the agents file is not available: an \"ask\" rule refuses the request", "err", err)
+		} else {
+			deps.Agents = store
+		}
+	}
 
 	// The log store. Without it, the service keeps the logs only in memory.
 	var store *logs.Store

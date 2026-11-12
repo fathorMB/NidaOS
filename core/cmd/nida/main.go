@@ -71,6 +71,7 @@ Commands:
   db remove NAME --yes    remove a database and its data (the backups stay)
   github                  the GitHub App of NidaOS; github setup makes it
   runners                 the connected repositories and the jobs that run now
+  mcp                     the MCP server for an agent, on stdin and stdout (docs/agents.md)
   version                 the version of nida and of nida-core
 
 Global options:
@@ -157,6 +158,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		err = a.github(ctx, cmdArgs)
 	case "runner", "runners":
 		err = a.runners(ctx, cmdArgs)
+	case "mcp":
+		err = a.mcpServe(ctx, cmdArgs, stdin)
 	case "version":
 		err = a.version(ctx, cmdArgs)
 	case "help":

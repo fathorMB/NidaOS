@@ -177,9 +177,9 @@ func (p Plan) DiskOf(r Role) string {
 
 // Errors of a plan.
 var (
-	ErrNoSystem   = errors.New("one disk must have the System role")
-	ErrSameRole   = errors.New("two disks have the same role: give each role to one disk only")
-	ErrBadDisk    = errors.New("the plan names a disk that the installer cannot use")
+	ErrNoSystem    = errors.New("one disk must have the System role")
+	ErrSameRole    = errors.New("two disks have the same role: give each role to one disk only")
+	ErrBadDisk     = errors.New("the plan names a disk that the installer cannot use")
 	ErrUnknownRole = errors.New("the plan has an unknown role")
 )
 

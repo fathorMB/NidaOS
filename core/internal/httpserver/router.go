@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fathorMB/NidaOS/core/internal/agents"
 	"github.com/fathorMB/NidaOS/core/internal/auth"
 	"github.com/fathorMB/NidaOS/core/internal/version"
 )
@@ -45,6 +46,9 @@ type Router struct {
 	updates *UpdateHosting
 	// console serves the web console. Nil: no console.
 	console http.Handler
+	// agents keeps the approval requests and the actions of the agent
+	// tokens. Nil: an "ask" rule refuses the request.
+	agents *agents.Store
 	// authority gives the certificate of the NidaOS authority.
 	authority CertSource
 	// auth checks the sessions and the tokens. Nil: no access check.
@@ -86,6 +90,9 @@ type Deps struct {
 	// Console serves the files of the web console (decision D29) for each
 	// GET out of /api/. Nil: no console.
 	Console http.Handler
+	// Agents keeps the approval requests and the record of the agents
+	// (milestone M-09). Nil: no approval paths.
+	Agents *agents.Store
 }
 
 // NewRouter makes the router with all the paths of the service.
@@ -103,6 +110,7 @@ func NewRouter(d Deps) *Router {
 		runners:   d.Runners,
 		updates:   d.Updates,
 		console:   d.Console,
+		agents:    d.Agents,
 		authority: d.Authority,
 		limiter:   auth.NewLimiter(),
 		started:   time.Now(),
@@ -126,6 +134,10 @@ func NewRouter(d Deps) *Router {
 	r.addDatabaseRoutes()
 	r.addRunnerRoutes()
 	r.addUpdateRoutes()
+	r.addAgentRoutes()
+	if r.auth != nil {
+		r.addMCPRoutes()
+	}
 	r.mux.HandleFunc("/", r.noRoute)
 	return r
 }
@@ -146,6 +158,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 	if req, ok := r.checkAccess(rec, req); ok {
 		r.mux.ServeHTTP(rec, req)
+		r.recordAgent(req, rec.status)
 	}
 	r.logger.Debug("request",
 		"method", req.Method,

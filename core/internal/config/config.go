@@ -109,6 +109,11 @@ type Config struct {
 	// then the service has no GitHub runners.
 	RunnersFile string
 
+	// AgentsFile keeps the approval requests and the record of the agent
+	// tokens (milestone M-09). It is empty when the value is "off": then
+	// an "ask" rule refuses the request.
+	AgentsFile string
+
 	// JobAddr is the job endpoint for the runner pods (T-09). It is the
 	// address of the computer on the pod network of k3s.
 	JobAddr string
@@ -164,6 +169,7 @@ const (
 	DefaultDatabasesFile  = "/var/lib/nidaos/databases.json"
 	DefaultBackupDir      = "/var/nida/standard/backups"
 	DefaultRunnersFile    = "/var/lib/nidaos/runners.json"
+	DefaultAgentsFile     = "/var/lib/nidaos/agents.json"
 	// DefaultJobAddr is the first address of the pod network of k3s: the
 	// bridge cni0 of the computer.
 	DefaultJobAddr = "10.42.0.1:8471"
@@ -212,6 +218,7 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 		DatabasesFile:   DefaultDatabasesFile,
 		BackupDir:       DefaultBackupDir,
 		RunnersFile:     DefaultRunnersFile,
+		AgentsFile:      DefaultAgentsFile,
 		JobAddr:         DefaultJobAddr,
 		PublicURL:       DefaultPublicURL,
 		ConsoleUpstream: DefaultConsoleUpstream,
@@ -353,6 +360,13 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 			cfg.RunnersFile = ""
 		} else {
 			cfg.RunnersFile = v
+		}
+	}
+	if v := strings.TrimSpace(getenv(Prefix + "AGENTS_FILE")); v != "" {
+		if v == "off" {
+			cfg.AgentsFile = ""
+		} else {
+			cfg.AgentsFile = v
 		}
 	}
 	if v := strings.TrimSpace(getenv(Prefix + "JOB_ADDR")); v != "" {

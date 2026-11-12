@@ -18,9 +18,9 @@ type Facts struct {
 	Threads  int    `json:"threads"`
 	MemoryB  int64  `json:"memory_bytes"`
 	// Firmware is "UEFI" or "BIOS".
-	Firmware string  `json:"firmware"`
-	Network  []NIC   `json:"network"`
-	Version  string  `json:"version"`
+	Firmware string `json:"firmware"`
+	Network  []NIC  `json:"network"`
+	Version  string `json:"version"`
 }
 
 // NIC is a network interface with a cable or a wireless link.

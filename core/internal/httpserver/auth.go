@@ -31,6 +31,8 @@ type Authenticator interface {
 	CheckPassword(password string) error
 	SetPassword(password string) error
 	CreateToken(name, level string) (auth.Token, string, error)
+	CreateAgentToken(name, agent string, rules map[string]string) (auth.Token, string, error)
+	SetRules(id string, rules map[string]string) (auth.Token, error)
 	Tokens() []auth.Token
 	DeleteToken(id string) error
 }
@@ -81,6 +83,9 @@ func accessOf(req *http.Request) access {
 		return accessAdmin
 	case p == "/api/v1/auth/logout" || p == "/api/v1/auth/me":
 		return accessAny
+	case p == "/api/v1/mcp":
+		// Each tool calls the API with the identity and its rules (M-09).
+		return accessAny
 	case p == "/api/v1/tokens" || strings.HasPrefix(p, "/api/v1/tokens/") || p == "/api/v1/auth/password":
 		return accessAdmin
 	case strings.HasPrefix(p, "/api/v1/databases/") && strings.HasSuffix(p, "/connection"):
@@ -125,6 +130,13 @@ func (r *Router) checkAccess(w http.ResponseWriter, req *http.Request) (*http.Re
 		req = req.WithContext(context.WithValue(req.Context(), identityKey{}, id))
 	}
 
+	// An agent token: its rules decide each operation (M-09).
+	if id.Level == auth.LevelAgent && rule != accessAny {
+		if !r.agentCheck(w, req, id) {
+			return nil, false
+		}
+		return req, true
+	}
 	need := auth.LevelRead
 	if rule == accessAdmin {
 		need = auth.LevelAdmin
@@ -180,6 +192,7 @@ func (r *Router) addAuthRoutes() {
 	r.handle(http.MethodGet, "/api/v1/tokens", r.tokensList)
 	r.handle(http.MethodPost, "/api/v1/tokens", r.tokensCreate)
 	r.handle(http.MethodDelete, "/api/v1/tokens/{id}", r.tokensDelete)
+	r.handle(http.MethodPatch, "/api/v1/tokens/{id}", r.tokenRules)
 }
 
 // authStatus tells the sign-in page if the owner password is set.
@@ -329,14 +342,26 @@ func (r *Router) tokensList(w http.ResponseWriter, _ *http.Request) {
 // secret of the token is visible.
 func (r *Router) tokensCreate(w http.ResponseWriter, req *http.Request) {
 	var body struct {
-		Name  string `json:"name"`
-		Level string `json:"level"`
+		Name  string            `json:"name"`
+		Level string            `json:"level"`
+		Agent string            `json:"agent"`
+		Rules map[string]string `json:"rules"`
 	}
 	if !readJSON(w, req, &body) {
 		return
 	}
-	t, secret, err := r.auth.CreateToken(body.Name, body.Level)
+	var t auth.Token
+	var secret string
+	var err error
+	if body.Level == auth.LevelAgent {
+		t, secret, err = r.auth.CreateAgentToken(body.Name, body.Agent, body.Rules)
+	} else {
+		t, secret, err = r.auth.CreateToken(body.Name, body.Level)
+	}
 	switch {
+	case errors.Is(err, auth.ErrBadRules):
+		writeError(w, http.StatusBadRequest, "bad_rules", err.Error()+".")
+		return
 	case errors.Is(err, auth.ErrBadName):
 		writeError(w, http.StatusBadRequest, "bad_name", err.Error()+".")
 		return
