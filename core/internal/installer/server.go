@@ -232,6 +232,9 @@ func (s *Server) install(ctx context.Context, a Answers) error {
 	s.mu.Unlock()
 	s.logLine("the installation starts")
 	e := s.NewEngine(s.logLine, s.step, s.lines)
+	s.mu.Lock()
+	e.Settings = s.seed.Settings
+	s.mu.Unlock()
 	go func() {
 		err := e.Install(ctx, a, disks, seedKey)
 		s.mu.Lock()

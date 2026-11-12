@@ -27,7 +27,7 @@ func Classify(method, path string) string {
 	p := strings.TrimSuffix(path, "/")
 	read := method == http.MethodGet || method == http.MethodHead
 	switch {
-	case p == "/api/v1/tokens" || strings.HasPrefix(p, "/api/v1/tokens/") || p == "/api/v1/auth/password":
+	case p == "/api/v1/tokens" || strings.HasPrefix(p, "/api/v1/tokens/") || p == "/api/v1/auth/password" || strings.HasPrefix(p, "/api/v1/settings/"):
 		return auth.ClassAccess
 	case strings.HasPrefix(p, "/api/v1/approvals/") && !read:
 		return auth.ClassAccess

@@ -88,6 +88,9 @@ func accessOf(req *http.Request) access {
 		return accessAny
 	case p == "/api/v1/tokens" || strings.HasPrefix(p, "/api/v1/tokens/") || p == "/api/v1/auth/password":
 		return accessAdmin
+	case strings.HasPrefix(p, "/api/v1/settings/"):
+		// The backup of the settings has the secrets (M-11).
+		return accessAdmin
 	case strings.HasPrefix(p, "/api/v1/databases/") && strings.HasSuffix(p, "/connection"):
 		// The connection has the password of the owner role.
 		return accessAdmin

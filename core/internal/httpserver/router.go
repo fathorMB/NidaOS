@@ -49,6 +49,9 @@ type Router struct {
 	// agents keeps the approval requests and the actions of the agent
 	// tokens. Nil: an "ask" rule refuses the request.
 	agents *agents.Store
+	// settingsDir is the folder of the settings (/var/lib/nidaos). Empty:
+	// no backup path.
+	settingsDir string
 	// authority gives the certificate of the NidaOS authority.
 	authority CertSource
 	// auth checks the sessions and the tokens. Nil: no access check.
@@ -93,29 +96,32 @@ type Deps struct {
 	// Agents keeps the approval requests and the record of the agents
 	// (milestone M-09). Nil: no approval paths.
 	Agents *agents.Store
+	// SettingsDir is the folder of the settings for the backup (M-11).
+	SettingsDir string
 }
 
 // NewRouter makes the router with all the paths of the service.
 func NewRouter(d Deps) *Router {
 	r := &Router{
-		mux:       http.NewServeMux(),
-		logger:    d.Logger,
-		state:     d.State,
-		metrics:   d.Metrics,
-		logs:      d.Logs,
-		logStore:  d.LogStore,
-		auth:      d.Auth,
-		apps:      d.Apps,
-		dbs:       d.Databases,
-		runners:   d.Runners,
-		updates:   d.Updates,
-		console:   d.Console,
-		agents:    d.Agents,
-		authority: d.Authority,
-		limiter:   auth.NewLimiter(),
-		started:   time.Now(),
-		now:       time.Now,
-		heartbeat: SSEHeartbeat,
+		mux:         http.NewServeMux(),
+		logger:      d.Logger,
+		state:       d.State,
+		metrics:     d.Metrics,
+		logs:        d.Logs,
+		logStore:    d.LogStore,
+		auth:        d.Auth,
+		apps:        d.Apps,
+		dbs:         d.Databases,
+		runners:     d.Runners,
+		updates:     d.Updates,
+		console:     d.Console,
+		agents:      d.Agents,
+		settingsDir: d.SettingsDir,
+		authority:   d.Authority,
+		limiter:     auth.NewLimiter(),
+		started:     time.Now(),
+		now:         time.Now,
+		heartbeat:   SSEHeartbeat,
 	}
 	if r.logger == nil {
 		r.logger = slog.New(slog.DiscardHandler)
@@ -135,6 +141,7 @@ func NewRouter(d Deps) *Router {
 	r.addRunnerRoutes()
 	r.addUpdateRoutes()
 	r.addAgentRoutes()
+	r.addSettingsRoutes()
 	if r.auth != nil {
 		r.addMCPRoutes()
 	}
