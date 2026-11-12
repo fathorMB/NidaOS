@@ -970,6 +970,49 @@ expect "the record has the actions of the agent" agent_record
     echo
 } | tee -a report.txt
 
+echo "==> Examine the NidaOS desktop (M-08)"
+# The extension and the programs read nida-core through the local socket,
+# as the owner. A headless GNOME Shell of the owner loads the extension;
+# its screenshot goes into the test results for a visual check.
+desktop_installed() {
+    "${SSH[@]}" "test -f /usr/share/gnome-shell/extensions/nidaos@nidaos.local/extension.js && test -f /usr/share/nidaos/desktop/api.js" &&
+        "${SSH[@]}" "dconf read /org/gnome/shell/enabled-extensions" | grep -q 'nidaos@nidaos.local'
+}
+logs_program() {
+    "${SSH[@]}" "timeout 90 gjs -m /usr/share/nidaos/desktop/nida-logs.js --check" > desktop-logs.log 2>&1
+}
+files_program() {
+    "${SSH[@]}" "timeout 60 gjs -m /usr/share/nidaos/desktop/nida-files.js --check" > desktop-files.log 2>&1
+}
+extension_active() {
+    "${SSH[@]}" "timeout 180 dbus-run-session -- bash -c '
+        gnome-shell --headless --virtual-monitor 1280x800 --unsafe-mode > /tmp/nida-shell.log 2>&1 &
+        pid=\$!
+        for i in \$(seq 1 40); do
+            sleep 3
+            gnome-extensions info nidaos@nidaos.local 2> /dev/null | grep -Eq \"State: (ACTIVE|ENABLED)\" && break
+        done
+        gnome-extensions info nidaos@nidaos.local
+        sleep 10
+        gdbus call --session --dest org.gnome.Shell.Screenshot --object-path /org/gnome/Shell/Screenshot \
+            --method org.gnome.Shell.Screenshot.Screenshot false false /tmp/nida-desktop.png || true
+        kill \$pid
+        tail -n 30 /tmp/nida-shell.log'" > desktop-shell.log 2>&1
+    scp -q -P 2222 -i id_test -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        nida@127.0.0.1:/tmp/nida-desktop.png screen-nida-desktop.png 2> /dev/null || true
+    grep -Eq "State: (ACTIVE|ENABLED)" desktop-shell.log
+}
+expect "the image has the NidaOS extension, on for each user" desktop_installed
+expect "the log program reads the logs and the live stream" logs_program
+expect "the file program shows the tiers and the apps of the folders" files_program
+expect "GNOME Shell loads the NidaOS extension in the session of the owner" extension_active
+{
+    echo "## desktop"
+    echo "GNOME Shell $("${SSH[@]}" cat /usr/lib/nidaos/gnome-version 2> /dev/null)"
+    cat desktop-logs.log desktop-files.log 2> /dev/null || true
+    tail -n 40 desktop-shell.log 2> /dev/null || true
+} | tee -a report.txt
+
 echo "==> Examine the desktop and the RDP service"
 rdp_password=$(head -c 18 /dev/urandom | base64 | tr -d '/+=')
 rdp_listens() {

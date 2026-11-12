@@ -3,7 +3,8 @@
 #
 # Build it with the source of the core service and of the web console as
 # more contexts:
-#   podman build --build-context core=core --build-context console=console #       -f image/Containerfile image
+#   podman build --build-context core=core --build-context console=console
+#       --build-context desktop=desktop -f image/Containerfile image
 
 # Build the web console (milestone M-06). nida-core keeps its files
 # (decision D29).
@@ -41,6 +42,8 @@ RUN dnf -y install \
     gnome-remote-desktop \
     gnome-system-monitor \
     ptyxis \
+    gjs \
+    libadwaita \
     nftables \
     openssl && \
     dnf clean all
@@ -58,6 +61,15 @@ COPY rootfs/ /
 
 # The core service and the nida command (milestone M-02).
 COPY --from=core-build /out/nida-core /out/nida /usr/bin/
+
+# The NidaOS desktop (milestone M-08, decision D11): the GNOME extension
+# and the programs. They share the client of the API (desktop/lib/api.js).
+COPY --from=desktop extension/ /usr/share/gnome-shell/extensions/nidaos@nidaos.local/
+COPY --from=desktop lib/api.js /usr/share/gnome-shell/extensions/nidaos@nidaos.local/api.js
+COPY --from=desktop apps/ /usr/share/nidaos/desktop/
+COPY --from=desktop lib/api.js /usr/share/nidaos/desktop/api.js
+RUN dconf update && \
+    rpm -q --qf '%{VERSION}' gnome-shell > /usr/lib/nidaos/gnome-version
 
 RUN chmod 0755 /usr/libexec/nidaos/nida-rdp-setup && \
     systemctl enable k3s.service gdm.service nida-rdp-setup.service gnome-remote-desktop.service nida-core.service nida-firstboot.service nida-firewall.service && \

@@ -1,0 +1,91 @@
+/* The NidaOS desktop (milestone M-08). The colors are the dark tokens of
+   the mockups (design/desktop). */
+
+.nida-top {
+  background-color: #1b1816;
+  border-bottom: 1px solid #342d28;
+  padding: 0 16px;
+  spacing: 18px;
+  color: #efe7df;
+  font-size: 10.5pt;
+}
+.nida-brand { font-weight: bold; font-size: 12pt; color: #efe7df; }
+.nida-brand-mark { color: #f08a3e; font-weight: bold; font-size: 13pt; }
+.nida-host { color: #a2968b; font-family: monospace; font-size: 10pt; }
+.nida-pill {
+  border: 1px solid #342d28;
+  border-radius: 99px;
+  padding: 3px 10px;
+  spacing: 7px;
+  font-size: 10pt;
+}
+.nida-led { width: 8px; height: 8px; border-radius: 4px; background-color: #74c493; }
+.nida-led.warn { background-color: #e2b04a; }
+.nida-led.bad { background-color: #ef7d73; }
+.nida-led.off { background-color: #342d28; }
+.nida-clock { font-family: monospace; font-size: 10pt; }
+
+.nida-desk { background-color: #12100e; padding: 16px; }
+.nida-grid { spacing: 12px; }
+.nida-row { spacing: 12px; }
+.nida-card {
+  background-color: #1b1816;
+  border: 1px solid #342d28;
+  border-radius: 8px;
+  padding: 14px 16px;
+  color: #efe7df;
+  spacing: 4px;
+}
+.nida-card-title { color: #a2968b; font-size: 9pt; font-weight: bold; letter-spacing: 1px; }
+.nida-card-note { color: #a2968b; font-size: 9pt; font-weight: normal; }
+.nida-big { font-size: 24pt; font-weight: bold; }
+.nida-big-unit { color: #a2968b; font-size: 10pt; }
+.nida-sub { color: #a2968b; font-size: 9pt; }
+.nida-spark { height: 46px; }
+.nida-stale { color: #ef7d73; font-size: 9pt; }
+
+.nida-tier { spacing: 6px; }
+.nida-tier-name { font-weight: bold; font-size: 11.5pt; }
+.nida-bar { height: 10px; border-radius: 3px; background-color: #151210; }
+.nida-bar-fill { height: 10px; border-radius: 3px; }
+
+.nida-table-head { color: #a2968b; font-size: 9pt; }
+.nida-table-row { border-top: 1px solid #342d28; padding: 6px 0; spacing: 10px; }
+.nida-cell-mono { font-family: monospace; font-size: 9.5pt; }
+.nida-kind { font-family: monospace; font-size: 8.5pt; color: #a2968b; border: 1px solid #342d28; border-radius: 4px; padding: 1px 5px; }
+
+.nida-link {
+  color: #f08a3e;
+  border: 1px solid #342d28;
+  border-radius: 6px;
+  padding: 3px 10px;
+}
+.nida-link:hover { background-color: #151210; border-color: #a2968b; }
+
+.nida-dock {
+  background-color: #1b1816;
+  border-top: 1px solid #342d28;
+  padding: 8px;
+  spacing: 4px;
+}
+.nida-dock-button {
+  width: 78px;
+  padding: 7px 0 5px 0;
+  border-radius: 6px;
+  color: #a2968b;
+  font-size: 8.5pt;
+  border: 1px solid transparent;
+}
+.nida-dock-button:hover, .nida-dock-button:checked { background-color: #151210; color: #efe7df; border-color: #342d28; }
+.nida-dock-icon { icon-size: 22px; }
+.nida-dock-sep { width: 1px; background-color: #342d28; margin: 6px 8px; }
+
+.nida-power-choice {
+  border: 1px solid #342d28;
+  border-radius: 6px;
+  padding: 10px 12px;
+  spacing: 2px;
+  min-width: 380px;
+}
+.nida-power-choice:hover { background-color: #151210; border-color: #a2968b; }
+.nida-power-danger { color: #ef7d73; font-weight: bold; }

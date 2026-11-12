@@ -1,0 +1,8 @@
+{
+  "uuid": "nidaos@nidaos.local",
+  "name": "NidaOS desktop",
+  "description": "The monitoring desktop of NidaOS: the live metrics, the storage tiers, the apps and the databases, the dock and the power dialog (milestone M-08).",
+  "shell-version": ["47", "48", "49", "50", "51"],
+  "url": "https://github.com/fathorMB/NidaOS",
+  "version": 1
+}

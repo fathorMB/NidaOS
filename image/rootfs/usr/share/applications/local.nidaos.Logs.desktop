@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=NidaOS logs
+Comment=The live logs of the system, the apps and the databases
+Exec=gjs -m /usr/share/nidaos/desktop/nida-logs.js
+Icon=text-x-generic
+Categories=System;Monitor;

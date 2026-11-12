@@ -19,6 +19,7 @@ on:
     paths:
       - core/**
       - console/**
+      - desktop/**
       - image/**
       - installer/**
       - tests/**
@@ -74,7 +75,7 @@ jobs:
           apt install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf xorriso socat freerdp3-x11
 
       - name: Build the image
-        run: sudo podman build -t "$IMAGE:$IMAGE_TAG" --build-arg NIDAOS_BUILD=v1 --build-context core=core --build-context console=console -f image/Containerfile image
+        run: sudo podman build -t "$IMAGE:$IMAGE_TAG" --build-arg NIDAOS_BUILD=v1 --build-context core=core --build-context console=console --build-context desktop=desktop -f image/Containerfile image
 
       - name: Build the installer image
         run: |
@@ -103,7 +104,7 @@ jobs:
         run: |
           # The virtual machine connects to this registry as 10.0.2.2:5000.
           sudo podman run -d --name registry -p 5000:5000 docker.io/library/registry:2
-          sudo podman build -t localhost:5000/nidaos:v2 --build-arg NIDAOS_BUILD=v2 --build-context core=core --build-context console=console -f image/Containerfile image
+          sudo podman build -t localhost:5000/nidaos:v2 --build-arg NIDAOS_BUILD=v2 --build-context core=core --build-context console=console --build-context desktop=desktop -f image/Containerfile image
           sudo podman push --tls-verify=false localhost:5000/nidaos:v2
 
       - name: Install the browser of the console test
