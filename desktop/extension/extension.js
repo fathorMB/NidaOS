@@ -78,7 +78,7 @@ function led(kind = '') {
 }
 
 function card(title, note = '') {
-    const box = new St.BoxLayout({vertical: true, style_class: 'nida-card', x_expand: true});
+    const box = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, style_class: 'nida-card', x_expand: true});
     const head = new St.BoxLayout();
     head.add_child(label(title.toUpperCase(), 'nida-card-title'));
     const n = label(note, 'nida-card-note');
@@ -115,7 +115,7 @@ class NidaPowerDialog extends ModalDialog.ModalDialog {
         box.add_child(label(`${running} apps and databases are in operation. A restart stops them for some minutes.`, 'nida-sub'));
         const choice = (title, text, action, danger = false) => {
             const b = new St.Button({style_class: 'nida-power-choice', x_expand: true, can_focus: true});
-            const v = new St.BoxLayout({vertical: true});
+            const v = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL});
             v.add_child(label(title, danger ? 'nida-power-danger' : 'nida-tier-name'));
             v.add_child(label(text, 'nida-sub'));
             b.set_child(v);
@@ -185,7 +185,7 @@ class Desktop {
         this._dock = new St.BoxLayout({style_class: 'nida-dock', reactive: true, width: mon.width, x: mon.x});
         const dockButton = (title, icon, action) => {
             const b = new St.Button({style_class: 'nida-dock-button', can_focus: true, toggle_mode: false});
-            const v = new St.BoxLayout({vertical: true, x_align: Clutter.ActorAlign.CENTER});
+            const v = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, x_align: Clutter.ActorAlign.CENTER});
             v.add_child(new St.Icon({icon_name: icon, style_class: 'nida-dock-icon', x_align: Clutter.ActorAlign.CENTER}));
             v.add_child(label(title));
             b.set_child(v);
@@ -210,9 +210,11 @@ class Desktop {
 
         // The monitor, below the windows.
         this._desk = new St.ScrollView({style_class: 'nida-desk', x: mon.x, y: mon.y + 44, width: mon.width, height: mon.height - 44 - 64});
-        const grid = new St.BoxLayout({vertical: true, style_class: 'nida-grid', x_expand: true});
+        const grid = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, style_class: 'nida-grid', x_expand: true});
         this._desk.set_child(grid);
-        Main.layoutManager.uiGroup.insert_child_above(this._desk, Main.layoutManager._backgroundGroup);
+        // The background group is in the window group: the monitor goes just
+        // above it, below the windows.
+        global.window_group.insert_child_above(this._desk, Main.layoutManager._backgroundGroup);
 
         // Row 1: the meters and the system.
         const row1 = new St.BoxLayout({style_class: 'nida-row', x_expand: true});
@@ -224,7 +226,7 @@ class Desktop {
         this._sys.add_child(this._sysVersion);
         this._sysSub = label('', 'nida-sub');
         this._sys.add_child(this._sysSub);
-        this._sysUpdate = new St.BoxLayout({vertical: true});
+        this._sysUpdate = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL});
         this._sys.add_child(this._sysUpdate);
         for (const c of [this._cpu.card, this._mem.card, this._net.card, this._sys])
             row1.add_child(c);
@@ -239,15 +241,15 @@ class Desktop {
         // Row 3: the workloads, the connections and the events.
         const row3 = new St.BoxLayout({style_class: 'nida-row', x_expand: true});
         this._work = card('Apps and databases');
-        this._workRows = new St.BoxLayout({vertical: true});
+        this._workRows = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL});
         this._work.add_child(this._workRows);
         this._work.x_expand = true;
-        const side = new St.BoxLayout({vertical: true, style_class: 'nida-grid', width: 420});
+        const side = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, style_class: 'nida-grid', width: 420});
         this._conn = card('Connections');
-        this._connRows = new St.BoxLayout({vertical: true});
+        this._connRows = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL});
         this._conn.add_child(this._connRows);
         this._events = card('Events');
-        this._eventRows = new St.BoxLayout({vertical: true});
+        this._eventRows = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL});
         this._events.add_child(this._eventRows);
         side.add_child(this._conn);
         side.add_child(this._events);
@@ -366,7 +368,7 @@ class Desktop {
         // The storage tiers.
         this._tiers.destroy_all_children();
         for (const t of d.state?.tiers ?? []) {
-            const box = new St.BoxLayout({vertical: true, style_class: 'nida-tier', x_expand: true});
+            const box = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, style_class: 'nida-tier', x_expand: true});
             const head = new St.BoxLayout();
             head.add_child(label(t.name === 'performance' ? 'Performance' : 'Standard', 'nida-tier-name'));
             const used = t.usage ? `${bytes(t.usage.used_bytes, 0)} / ${bytes(t.usage.total_bytes, 0)}` : t.state.replace('_', ' ');
