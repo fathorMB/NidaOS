@@ -79,12 +79,16 @@ export class NidaAPI {
                         throw new Error(`the stream answered ${msg.get_status()}`);
                     onState?.('live');
                     const lines = new Gio.DataInputStream({base_stream: input, close_base_stream: true});
+                    const decoder = new TextDecoder();
                     let event = 'message';
                     let data = '';
                     for (;;) {
-                        const [line] = await lines.read_line_async(GLib.PRIORITY_DEFAULT, cancel);
-                        if (line === null)
+                        // GNOME Shell can make read_line_async give bytes,
+                        // not text: decode the bytes.
+                        const [raw] = await lines.read_line_async(GLib.PRIORITY_DEFAULT, cancel);
+                        if (raw === null)
                             break;
+                        const line = typeof raw === 'string' ? raw : decoder.decode(raw);
                         if (line === '') {
                             if (data !== '') {
                                 try {
@@ -104,6 +108,7 @@ export class NidaAPI {
                 } catch (e) {
                     if (cancel.is_cancelled())
                         return;
+                    console.warn(`NidaOS stream ${path}: ${e.message}`);
                 }
                 onState?.('stopped');
                 await new Promise(resolve => GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 3, () => {

@@ -487,6 +487,9 @@ export default class NidaDesktopExtension extends Extension {
         // The standard parts of GNOME go away (task T-02): the dock of
         // NidaOS replaces the top panel and the activities.
         Main.panel.hide();
+        // GNOME Shell starts in the overview: show the monitor of NidaOS.
+        if (Main.layoutManager._startingUp)
+            Main.layoutManager.connectObject('startup-complete', () => Main.overview.hide(), this);
         this._desktop = new Desktop(this);
         this._desktop.build();
         this._desktop.start();
@@ -494,6 +497,7 @@ export default class NidaDesktopExtension extends Extension {
     }
 
     disable() {
+        Main.layoutManager.disconnectObject(this);
         this._desktop?.destroy();
         this._desktop = null;
         Main.panel.show();
