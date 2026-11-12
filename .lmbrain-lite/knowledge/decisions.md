@@ -151,7 +151,7 @@ The lead selected this on 2026-11-11 for M-06. nida-core gives the system versio
 
 ## D32 — The installer is a web page in a kiosk browser
 
-The operator selected this on 2026-11-11 for M-07. A small Go program on the installation media measures the disks, makes the plan and runs the installation. The six steps of the mockup are a React page with the design tokens of the console. A minimal browser shows the page in full screen. Reason: the installer shares the parts and the style of the console, and Playwright tests it as the console. The owner can also follow the installation from the browser of an other computer in the home network.
+The operator selected this on 2026-11-11 for M-07. A small Go program on the installation media measures the disks, makes the plan and runs the installation. The six steps of the mockup are a React page with the design tokens of the console. Firefox in its kiosk mode shows the page in full screen (the Fedora package cog is not the WPE browser). Reason: the installer shares the parts and the style of the console, and Playwright tests it as the console. The owner can also follow the installation from the browser of an other computer in the home network.
 
 ## D33 — The installer uses bootc install, without Anaconda
 
