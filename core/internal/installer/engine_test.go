@@ -95,7 +95,7 @@ func TestInstall(t *testing.T) {
 	if f.has("wipefs -a /dev/nvme0n1") {
 		t.Error("the installer erased a disk that the plan does not use")
 	}
-	if !f.has("mount --bind " + e.TmpMount + " /var/tmp") || !f.has("umount /var/tmp") {
+	if !f.has("mount --bind "+e.TmpMount+" /var/tmp") || !f.has("umount /var/tmp") {
 		t.Error("/var/tmp is not on a tier during the copy")
 	}
 
