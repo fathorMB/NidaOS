@@ -1012,9 +1012,15 @@ files_program() {
     "${SSH[@]}" "timeout 60 gjs -m /usr/share/nidaos/desktop/nida-files.js --check" > desktop-files.log 2>&1
 }
 extension_active() {
-    "${SSH[@]}" "cat > /tmp/desktop-check.sh" < "$REPO/scripts/desktop-check.sh" &&
-        "${SSH[@]}" "timeout 240 bash /tmp/desktop-check.sh" > desktop-shell.log 2>&1
-    "${SSH[@]}" "cat /tmp/nida-desktop.png" > screen-nida-desktop.png 2> /dev/null || true
+    {
+        echo "## copy the script"
+        "${SSH[@]}" "cat > /tmp/desktop-check.sh; ls -l /tmp/desktop-check.sh" < "$REPO/scripts/desktop-check.sh"
+        echo "copy: exit $?"
+        echo "## run the script"
+        "${SSH[@]}" "timeout 240 bash -x /tmp/desktop-check.sh" < /dev/null
+        echo "run: exit $?"
+    } > desktop-shell.log 2>&1
+    "${SSH[@]}" "cat /tmp/nida-desktop.png" < /dev/null > screen-nida-desktop.png 2> /dev/null || true
     [ -s screen-nida-desktop.png ] || rm -f screen-nida-desktop.png
     grep -Eq "State: (ACTIVE|ENABLED)" desktop-shell.log
 }
