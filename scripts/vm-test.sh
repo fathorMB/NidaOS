@@ -1002,7 +1002,9 @@ files_program() {
     "${SSH[@]}" "timeout 60 gjs -m /usr/share/nidaos/desktop/nida-files.js --check" > desktop-files.log 2>&1
 }
 extension_active() {
-    "${SSH[@]}" "timeout 180 dbus-run-session -- bash -c '
+    # Fedora has dbus-broker and no dbus-run-session: the headless shell
+    # uses the session bus of the owner.
+    "${SSH[@]}" "export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$(id -u)/bus; timeout 180 bash -c '
         gnome-shell --headless --virtual-monitor 1280x800 --unsafe-mode > /tmp/nida-shell.log 2>&1 &
         pid=\$!
         for i in \$(seq 1 40); do
