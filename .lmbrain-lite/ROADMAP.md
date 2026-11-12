@@ -17,7 +17,7 @@ generated: true
 | 6 | M-06 | Web console | done | 10/10 | 100% |
 | 7 | M-07 | Installer with the disk planner | done | 10/10 | 100% |
 | 8 | M-08 | Monitoring desktop | approved | 0/7 | 0% |
-| 9 | M-09 | Agent access | approved | 0/7 | 0% |
+| 9 | M-09 | Agent access | active | 6/7 (1 blocked) | 86% |
 | 10 | M-10 | Internet gateway on a Raspberry Pi | approved | 0/9 | 0% |
 | 11 | M-11 | Updates, rollback and security | approved | 0/8 | 0% |
 | 12 | M-12 | Installation on the real computer | approved | 0/6 | 0% |
@@ -80,7 +80,7 @@ generated: true
 
 ## M-09 — Agent access
 
-- `status`: approved
+- `status`: active
 - `priority`: 9
 - `file`: milestones/M-09.md
 - `outcome`: An agent such as Claude Code or Hermes manages NidaOS with the same commands as the console. Rules tell what the agent can do without the approval of the operator.

@@ -155,6 +155,22 @@
       "patterns": [
         "core/internal/updates/**"
       ]
+    },
+    {
+      "id": "agents",
+      "name": "Agent access",
+      "description": "The agent tokens with their rules, the approval requests, the record and the MCP server (M-09).",
+      "patterns": [
+        "core/internal/agents/**",
+        "core/internal/mcp/**",
+        "core/internal/auth/agent.go",
+        "core/internal/httpserver/agents.go",
+        "core/internal/httpserver/agents_test.go",
+        "core/internal/httpserver/mcp.go",
+        "core/cmd/nida/mcp.go",
+        "console/src/pages/agents.tsx",
+        "docs/agents.md"
+      ]
     }
   ],
   "categories": {
