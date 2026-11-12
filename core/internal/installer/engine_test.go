@@ -85,6 +85,7 @@ func TestInstall(t *testing.T) {
 	for _, want := range []string{
 		"wipefs -a /dev/sdc", "sgdisk -n 1:0:+600M -t 1:ef00 -c 1:EFI -n 2:0:+1G", "sgdisk -n 1:0:0 -t 1:8300 -c 1:nida-perf /dev/sdb",
 		"mkfs.xfs -f -q -L root /dev/sdc3", "mkfs.xfs -f -q -L nida-std /dev/sda1", "mount /dev/sdc3 " + target,
+		"mount -o remount,rw " + target,
 		"bootc install to-filesystem --source-imgref containers-storage:ghcr.io/fathormb/nidaos:proof", "umount -R " + target,
 	} {
 		if !f.has(want) {
