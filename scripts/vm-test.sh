@@ -280,7 +280,16 @@ k3s_port_closed() {
         "${SSH[@]}" "sudo k3s kubectl get nodes" > /dev/null
 }
 # k3s needs some minutes after the first start: the check waits for it.
-expect "the home network cannot open the API port of k3s" retry 600 k3s_port_closed
+# (The helper retry comes later in this script.)
+k3s_port_closed_wait() {
+    local waited=0
+    until k3s_port_closed; do
+        [ "$waited" -ge 600 ] && return 1
+        sleep 10
+        waited=$((waited + 10))
+    done
+}
+expect "the home network cannot open the API port of k3s" k3s_port_closed_wait
 {
     echo "## firewall"
     "${SSH[@]}" "systemctl status nida-firewall.service --no-pager -n 20" || true
