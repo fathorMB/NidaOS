@@ -38,11 +38,21 @@ This document tells the protections of NidaOS, the services that listen on the n
 - nida-core asks the registry for a new version each day. It downloads and installs nothing without the owner (the Updates page of the console).
 - An update replaces the full system in one step, and the version before stays for a rollback.
 
+### 4.1 The signature of the images
+
+A publication (the workflow `image` with `publish`) pushes the image with the tags `proof`, `1.<run number>` and the commit, and signs it with cosign. The signature is keyless: its certificate has the identity of the workflow. To verify an image:
+
+```sh
+cosign verify ghcr.io/fathormb/nidaos:proof   --certificate-identity-regexp '^https://github.com/fathorMB/NidaOS/.github/workflows/image.yml@'   --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+The computer does not verify the signature yet (section 5).
+
 ## 5. The open points
 
 | Point | Risk | Plan |
 | --- | --- | --- |
 | SELinux is off in the installer and in the installed system (the installer runs `bootc install --disable-selinux`). | Less protection between the containers and the system. | M-11 task T-04: k3s-selinux and the labels of the storage tiers. |
-| The images are not signed, and the computer does not verify a signature. | An attacker with access to the registry can give a changed image. | M-11 task T-01: cosign at the publication and a policy of the container tools. |
+| The computer does not verify the signature of an update. | An attacker with access to the registry can give a changed image. | A policy of the container tools (`sigstoreSigned` with the Fulcio and Rekor roots) for `ghcr.io/fathormb/nidaos`. It needs a signed publication first. |
 | The job endpoint and the API on 8470 use plain HTTP. | A device of the home network can read the traffic. | The console uses HTTPS (decision D29). TLS for 8470 can come later. |
 | The seed volume can have `install.json` with the owner password in plain text. | A person with the USB key reads the password. | Keep the seed volume in a safe place. Delete the file after the installation. |

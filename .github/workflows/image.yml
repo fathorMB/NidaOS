@@ -28,6 +28,9 @@ on:
 permissions:
   contents: read
   packages: write
+  # cosign signs the published image with the identity of this workflow
+  # (milestone M-11, task T-01).
+  id-token: write
 
 concurrency:
   group: image-${{ github.ref }}
@@ -170,5 +173,23 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.publish
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | sudo podman login ghcr.io -u "${{ github.actor }}" --password-stdin
-          sudo podman push "$IMAGE:$IMAGE_TAG"
+          # The version number of the publication: 1.<run number>.
+          version="1.${{ github.run_number }}"
+          sudo podman push --digestfile out/digest "$IMAGE:$IMAGE_TAG"
+          sudo podman push "$IMAGE:$IMAGE_TAG" "$IMAGE:$version"
           sudo podman push "$IMAGE:$IMAGE_TAG" "$IMAGE:${{ github.sha }}"
+          echo "IMAGE_DIGEST=$(sudo cat out/digest)" >> "$GITHUB_ENV"
+          echo "IMAGE_VERSION=$version" >> "$GITHUB_ENV"
+
+      - uses: sigstore/cosign-installer@v3
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
+
+      - name: Sign the published image
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
+        run: |
+          # A keyless signature: the certificate has the identity of this
+          # workflow. docs/security.md tells how to verify it.
+          echo "${{ secrets.GITHUB_TOKEN }}" | cosign login ghcr.io -u "${{ github.actor }}" --password-stdin
+          cosign sign --yes "$IMAGE@$IMAGE_DIGEST"
+          cosign verify "$IMAGE@$IMAGE_DIGEST"             --certificate-identity-regexp "^https://github.com/fathorMB/NidaOS/.github/workflows/image.yml@"             --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
+          echo "Published and signed: $IMAGE:$IMAGE_VERSION ($IMAGE_DIGEST)" >> "$GITHUB_STEP_SUMMARY"
