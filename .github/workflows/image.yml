@@ -191,5 +191,5 @@ jobs:
           # workflow. docs/security.md tells how to verify it.
           echo "${{ secrets.GITHUB_TOKEN }}" | cosign login ghcr.io -u "${{ github.actor }}" --password-stdin
           cosign sign --yes "$IMAGE@$IMAGE_DIGEST"
-          cosign verify "$IMAGE@$IMAGE_DIGEST"             --certificate-identity-regexp "^https://github.com/fathorMB/NidaOS/.github/workflows/image.yml@"             --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
+          cosign verify "$IMAGE@$IMAGE_DIGEST" --certificate-identity-regexp "^https://github.com/fathorMB/NidaOS/.github/workflows/image.yml@" --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
           echo "Published and signed: $IMAGE:$IMAGE_VERSION ($IMAGE_DIGEST)" >> "$GITHUB_STEP_SUMMARY"

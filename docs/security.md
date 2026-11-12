@@ -43,7 +43,7 @@ This document tells the protections of NidaOS, the services that listen on the n
 A publication (the workflow `image` with `publish`) pushes the image with the tags `proof`, `1.<run number>` and the commit, and signs it with cosign. The signature is keyless: its certificate has the identity of the workflow. To verify an image:
 
 ```sh
-cosign verify ghcr.io/fathormb/nidaos:proof   --certificate-identity-regexp '^https://github.com/fathorMB/NidaOS/.github/workflows/image.yml@'   --certificate-oidc-issuer https://token.actions.githubusercontent.com
+cosign verify ghcr.io/fathormb/nidaos:proof --certificate-identity-regexp '^https://github.com/fathorMB/NidaOS/.github/workflows/image.yml@' --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
 The computer does not verify the signature yet (section 5).
