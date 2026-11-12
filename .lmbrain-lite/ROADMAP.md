@@ -15,11 +15,11 @@ generated: true
 | 4 | M-04 | Managed databases | done | 10/10 | 100% |
 | 5 | M-05 | GitHub runners and the deploy flow | done | 9/9 | 100% |
 | 6 | M-06 | Web console | done | 10/10 | 100% |
-| 7 | M-07 | Installer with the disk planner | active | 9/10 | 90% |
+| 7 | M-07 | Installer with the disk planner | done | 10/10 | 100% |
 | 8 | M-08 | Monitoring desktop | approved | 0/7 | 0% |
-| 9 | M-09 | Agent access | approved | 0/7 | 0% |
+| 9 | M-09 | Agent access | active | 6/7 (1 blocked) | 86% |
 | 10 | M-10 | Internet gateway on a Raspberry Pi | approved | 0/9 | 0% |
-| 11 | M-11 | Updates, rollback and security | active | 6/8 (1 blocked) | 75% |
+| 11 | M-11 | Updates, rollback and security | approved | 0/8 | 0% |
 | 12 | M-12 | Installation on the real computer | approved | 0/6 | 0% |
 
 ## M-01 — Feasibility proof of the Fedora bootc base
@@ -66,7 +66,7 @@ generated: true
 
 ## M-07 — Installer with the disk planner
 
-- `status`: active
+- `status`: done
 - `priority`: 7
 - `file`: milestones/M-07.md
 - `outcome`: The operator installs NidaOS from a USB key with the six steps of the mockup. The installer measures the disks, proposes the plan and erases only after a confirmation.
@@ -80,7 +80,7 @@ generated: true
 
 ## M-09 — Agent access
 
-- `status`: approved
+- `status`: active
 - `priority`: 9
 - `file`: milestones/M-09.md
 - `outcome`: An agent such as Claude Code or Hermes manages NidaOS with the same commands as the console. Rules tell what the agent can do without the approval of the operator.
@@ -94,7 +94,7 @@ generated: true
 
 ## M-11 — Updates, rollback and security
 
-- `status`: active
+- `status`: approved
 - `priority`: 11
 - `file`: milestones/M-11.md
 - `outcome`: NidaOS gets signed updates from a registry and can go back to the version before. The system runs with SELinux on and without the shortcuts of the feasibility proof.
