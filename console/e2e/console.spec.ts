@@ -137,3 +137,21 @@ test('the theme follows the choice of the owner', async ({ page }) => {
   await page.getByRole('button', { name: 'Sign out' }).click();
   await expect(page.getByLabel('Owner password')).toBeVisible();
 });
+
+test('the owner approves a request of an agent and makes an agent token', async ({ page }) => {
+  test.skip(!!process.env.NIDA_RESOLVE, 'The fake API has the sample request of an agent.');
+  await signIn(page);
+  await expect(page.getByText(/Claude Code asks: Remove the app photos/)).toBeVisible();
+  await menu(page, 'Agents').click();
+  await expect(page.getByRole('heading', { name: 'Agents' })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Agent tokens' })).toContainText('laptop');
+  await shot(page, 'agents');
+  await page.getByRole('button', { name: 'Approve' }).click();
+  await expect(page.getByText('No agent waits for an approval.')).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Record of the actions' })).toContainText('done');
+  await page.getByLabel('Token name').fill('desktop');
+  await page.getByLabel('Updates: Can do'.replace('Updates', 'System updates')).check();
+  await page.getByRole('button', { name: 'Make the token' }).click();
+  await expect(page.getByTestId('agent-secret')).toHaveText('nida_mock_secret_for_the_test');
+  await expect(page.getByText(/claude mcp add --transport http nidaos/)).toBeVisible();
+});

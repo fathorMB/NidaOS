@@ -3,7 +3,7 @@
 // logs come from the live streams (live.tsx).
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ApiError, get, type App, type Database, type Health, type Me, type Runners, type State, type Updates } from './api';
+import { ApiError, get, type App, type Approval, type Database, type Health, type Me, type Runners, type State, type Updates } from './api';
 
 export interface Data {
   me: Me;
@@ -19,6 +19,8 @@ export interface Data {
   updates?: Updates;
   updatesOff?: boolean;
   updatesError?: string;
+  // approvals are the requests of the agents that wait for the owner.
+  approvals?: Approval[];
   // loadedAt is the time of the last complete read.
   loadedAt?: number;
   reload: () => void;
@@ -49,13 +51,14 @@ export function DataProvider({ me, children }: { me: Me; children: ReactNode }) 
       if (running.current) return;
       running.current = true;
       try {
-        const [health, state, apps, dbs, runners, updates] = await Promise.all([
+        const [health, state, apps, dbs, runners, updates, approvals] = await Promise.all([
           optional<Health>('/api/v1/health'),
           optional<State>('/api/v1/state'),
           optional<{ apps: App[] }>('/api/v1/apps'),
           optional<{ databases: Database[]; versions: number[] }>('/api/v1/databases'),
           optional<Runners>('/api/v1/runners'),
           optional<Updates>('/api/v1/updates'),
+          optional<{ approvals: Approval[] }>('/api/v1/approvals?state=pending'),
         ]);
         if (stop) return;
         setD((old) => ({
@@ -69,6 +72,7 @@ export function DataProvider({ me, children }: { me: Me; children: ReactNode }) 
           updates: updates.v ?? old.updates,
           updatesOff: updates.off,
           updatesError: updates.err,
+          approvals: approvals.v?.approvals ?? (approvals.off ? [] : old.approvals),
           loadedAt: Date.now(),
         }));
       } finally {
@@ -103,8 +107,11 @@ export interface Attention {
 }
 
 // attention finds the items that need the owner.
-export function attention(d: Pick<Data, 'apps' | 'databases' | 'runners' | 'updates' | 'state'>): Attention[] {
+export function attention(d: Pick<Data, 'apps' | 'databases' | 'runners' | 'updates' | 'state'> & { approvals?: Approval[] }): Attention[] {
   const out: Attention[] = [];
+  for (const a of d.approvals ?? []) {
+    out.push({ key: `approval-${a.id}`, level: 'warn', title: `${a.agent} asks: ${a.summary}`, text: `Token ${a.token}. Nothing changes until you approve it.`, to: '/agents', action: 'Open Agents' });
+  }
   for (const t of d.state?.tiers ?? []) {
     if (t.state === 'not_mounted') {
       out.push({ key: `tier-${t.name}`, level: 'bad', title: `The ${t.name} tier is not mounted`, text: `The disk of the tier is not on ${t.path}.`, to: '/storage', action: 'Open Storage' });

@@ -35,12 +35,14 @@ const (
 )
 
 // ValidLevel tells if l is a level.
-func ValidLevel(l string) bool { return l == LevelRead || l == LevelAdmin }
+func ValidLevel(l string) bool { return l == LevelRead || l == LevelAdmin || l == LevelAgent }
 
 // Allows tells if an identity with level have can do an operation that
 // needs the level need.
+// An agent token has the read level; its rules decide each change
+// (RuleOf).
 func Allows(have, need string) bool {
-	return have == LevelAdmin || (have == LevelRead && need == LevelRead)
+	return have == LevelAdmin || ((have == LevelRead || have == LevelAgent) && need == LevelRead)
 }
 
 // Kinds of identity.
@@ -57,6 +59,9 @@ type Identity struct {
 	Level string `json:"level"`
 	// TokenID is the id of the token, for KindToken.
 	TokenID string `json:"token_id,omitempty"`
+	// Agent and Rules are for an agent token (LevelAgent).
+	Agent string            `json:"agent,omitempty"`
+	Rules map[string]string `json:"rules,omitempty"`
 }
 
 // Parameters of the password hash. 600 000 iterations of PBKDF2 with
@@ -96,7 +101,7 @@ var (
 	ErrNoAccess      = errors.New("the session or the token is not valid")
 	ErrNotFound      = errors.New("the token does not exist")
 	ErrBadName       = errors.New("the name must have 1 to 64 characters: letters, digits, '-', '_', '.' or ' '")
-	ErrBadLevel      = errors.New("the level must be read or admin")
+	ErrBadLevel      = errors.New("the level must be read, admin or agent")
 )
 
 // passwordHash is the stored form of the password.
@@ -123,6 +128,10 @@ type Token struct {
 	Hint     string     `json:"hint"`
 	Created  time.Time  `json:"created"`
 	LastUsed *time.Time `json:"last_used,omitempty"`
+	// Agent is the name of the agent program, for example "Claude Code".
+	Agent string `json:"agent,omitempty"`
+	// Rules are the rules of an agent token (agent.go).
+	Rules map[string]string `json:"rules,omitempty"`
 }
 
 type storedToken struct {
@@ -334,7 +343,14 @@ func (s *Store) Authenticate(secret string) (Identity, error) {
 			if t.LastUsed == nil || now.Sub(*t.LastUsed) >= touchInterval {
 				t.LastUsed, s.dirty = &now, true
 			}
-			return Identity{Kind: KindToken, Name: t.Name, Level: t.Level, TokenID: t.ID}, nil
+			id := Identity{Kind: KindToken, Name: t.Name, Level: t.Level, TokenID: t.ID, Agent: t.Agent}
+			if t.Rules != nil {
+				id.Rules = make(map[string]string, len(t.Rules))
+				for k, v := range t.Rules {
+					id.Rules[k] = v
+				}
+			}
+			return id, nil
 		}
 	}
 	return Identity{}, ErrNoAccess
@@ -385,6 +401,12 @@ func (s *Store) Tokens() []Token {
 		if t.LastUsed != nil {
 			lu := *t.LastUsed
 			c.LastUsed = &lu
+		}
+		if t.Rules != nil {
+			c.Rules = make(map[string]string, len(t.Rules))
+			for k, v := range t.Rules {
+				c.Rules[k] = v
+			}
 		}
 		out = append(out, c)
 	}

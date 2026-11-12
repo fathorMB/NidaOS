@@ -160,3 +160,15 @@ The operator selected this on 2026-11-11 for M-07. The installer makes the parti
 ## D34 — One owner password at the installation
 
 The operator selected this on 2026-11-11 for M-07. The access step asks for one owner password of 12 characters or more, two times. The installer sets it as the owner password of nida-core (D16) and as the Remote Desktop password. The SSH key of the administrator stays: from the volume `NIDASEED`, or pasted. The owner can change the two passwords separately later.
+
+## D35 — The agents use the API through MCP, with the rules of their token
+
+The lead selected this on 2026-11-12 for M-09, during the autonomous work of the night. **To review by the operator.** An agent token has the level `agent` and one rule for each class of operation (read, apps, databases, delete, updates, secrets): `allow`, `ask` or `deny`. The class `access` (tokens, password, GitHub App, approvals) is always refused. nida-core applies the rules to each request, thus each interface of the agent has the same limits. The MCP server is in nida-core at `POST /api/v1/mcp` (Streamable HTTP), and `nida mcp` gives the same tools over stdio. Reason: the agent needs no program on its computer, only the token and the NidaOS authority.
+
+## D36 — An approval runs the request that the agent sent
+
+The lead selected this on 2026-11-12 for M-09. **To review by the operator.** With the rule `ask`, nida-core keeps the full request (method, path and body) in `/var/lib/nidaos/agents.json` (mode 0600). When the owner approves it in the console, nida-core runs that request with the identity of the agent and keeps the response for the agent. Reason: the owner approves exactly the operation that the agent asked for, and the agent does not have to send it again. A request expires after 24 hours.
+
+## D37 — The order of the milestones in the night of 2026-11-12
+
+The lead selected this on 2026-11-12. **To review by the operator.** The operator asked the lead to continue all the approved milestones alone. The lead does M-09 (agents) and M-11 (updates and security) before M-08 (desktop), because a VM test can examine them fully. M-08 needs a visual check of the remote desktop, and M-10 and M-12 need hardware (the Raspberry Pi and the real computer).
