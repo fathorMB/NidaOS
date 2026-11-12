@@ -268,6 +268,8 @@ class Desktop {
             this._lastData = Date.now();
             this.drawMetrics();
         }, state => {
+            if (state !== this._streamState)
+                console.log(`NidaOS desktop: the live stream is ${state}`);
             this._streamState = state;
             this.drawStale();
         }));
@@ -285,7 +287,10 @@ class Desktop {
     }
 
     async load() {
-        const opt = p => this.api.get(p).catch(() => null);
+        const opt = p => this.api.get(p).catch(e => {
+            console.warn(`NidaOS desktop: ${p} failed: ${e.message}`);
+            return null;
+        });
         const [state, apps, dbs, updates, runners, approvals] = await Promise.all([
             opt('/api/v1/state'), opt('/api/v1/apps'), opt('/api/v1/databases'), opt('/api/v1/updates'),
             opt('/api/v1/runners'), opt('/api/v1/approvals?state=pending'),
