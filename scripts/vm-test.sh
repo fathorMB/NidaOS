@@ -76,7 +76,7 @@ QEMU=(
     -device "ide-hd,drive=d1,bus=ide.1,rotation_rate=1"
     -drive "id=d2,if=none,format=qcow2,file=ssd-a.qcow2,throttling.bps-read=$((600 * MB))"
     -device "ide-hd,drive=d2,bus=ide.2,rotation_rate=1"
-    -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:3389-:3389,hostfwd=tcp:127.0.0.1:8470-:8470,hostfwd=tcp:127.0.0.1:15432-:15432,hostfwd=tcp:127.0.0.1:8443-:443,hostfwd=tcp:127.0.0.1:8090-:80"
+    -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:3389-:3389,hostfwd=tcp:127.0.0.1:8470-:8470,hostfwd=tcp:127.0.0.1:15432-:15432,hostfwd=tcp:127.0.0.1:8443-:443,hostfwd=tcp:127.0.0.1:8092-:80"
     -device "virtio-net-pci,netdev=n0"
     -serial "file:serial.log"
     -monitor "unix:monitor.sock,server,nowait"
@@ -99,14 +99,14 @@ plan_failures=0
 
 # plan_of reads the plan of the installer page: "system=sdc performance=sdb standard=sda".
 plan_of() {
-    curl -s --max-time 5 "http://127.0.0.1:$1/api/state" | python3 -c '
+    curl -s --max-time 5 "http://127.0.0.1:$1/api/state" 2>/dev/null | python3 -c '
 import json, sys
 s = json.load(sys.stdin)
 if s.get("phase") != "ready" or not s["plan"]["roles"]:
     sys.exit(1)
 r = {v: k for k, v in s["plan"]["roles"].items()}
 print(" ".join("%s=%s" % (x, r.get(x, "")) for x in ("system", "performance", "standard")))
-'
+' 2>/dev/null
 }
 
 # plan_set starts the installer with an other set of disks and only reads
@@ -168,7 +168,7 @@ qemu_pid=$!
 waited=0
 followed=""
 while kill -0 "$qemu_pid" 2>/dev/null; do
-    if [ -z "$followed" ] && curl -s --max-time 5 http://127.0.0.1:8090/api/state > follow.json 2>/dev/null &&
+    if [ -z "$followed" ] && curl -s --max-time 5 http://127.0.0.1:8092/api/state > follow.json 2>/dev/null &&
         grep -q '"phase":"installing"' follow.json; then
         followed=yes
         screenshot screen-installer.png
