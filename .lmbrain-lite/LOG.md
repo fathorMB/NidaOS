@@ -210,3 +210,4 @@ One line per action. Format: `timestamp | by:<who> | <target or -> | <kind> | <m
 2026-11-12T13:29 | by:lead | M-08/T-05 | task | done — Make the file program as a GNOME program, with the storage tiers and the app that uses each folder
 2026-11-12T13:29 | by:lead | M-08/T-06 | task | done — Make the log program as a GNOME program, with the sources, the filters and the search
 2026-11-12T13:29 | by:lead | M-08/T-07 | task | blocked: The installer sets the RDP password and the VM test logs in with xfreerdp3. The connection from a Windows computer needs the operator. — Set the Remote Desktop password at the installation and test the connection from Windows
+2026-11-12T14:08 | by:lead | - | note | M-08: run 43217987456 passed 146/146. The screenshot shows the full NidaOS monitor with live data and the full card titles. T-01 to T-06 are done. T-07 is blocked: the operator tests RDP from Windows.
