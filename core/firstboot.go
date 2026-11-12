@@ -146,6 +146,9 @@ func firstboot(file, authFile string, run firstbootRunner, home func(string) (st
 			}
 			return store.SetPassword(fb.Password)
 		})
+		step("the password of "+user+" for sudo is set", func() error {
+			return setUnixPassword(ctx, run, user, fb.Password)
+		})
 		step("the Remote Desktop password of "+user+" is set", func() error {
 			return cmd("grdctl", "--system", "rdp", "set-credentials", user, fb.Password)
 		})
@@ -200,6 +203,21 @@ func writeKey(user, key string, home func(string) (string, int, int, error)) err
 		if err := os.Chown(p, uid, gid); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// setUnixPassword sets the password of a user with chpasswd. The password
+// goes through stdin, not the command line. The tests replace chpasswdRun.
+func setUnixPassword(ctx context.Context, _ firstbootRunner, user, password string) error {
+	return chpasswdRun(ctx, user, password)
+}
+
+var chpasswdRun = func(ctx context.Context, user, password string) error {
+	cmd := exec.CommandContext(ctx, "chpasswd")
+	cmd.Stdin = strings.NewReader(user + ":" + password + "\n")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("chpasswd: %w: %s", err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }

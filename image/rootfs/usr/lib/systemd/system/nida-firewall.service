@@ -1,0 +1,16 @@
+[Unit]
+Description=The network protection of NidaOS (the internal ports of k3s)
+Documentation=https://github.com/fathorMB/NidaOS/tree/main/docs/security.md
+DefaultDependencies=no
+Before=network-pre.target k3s.service
+Wants=network-pre.target
+After=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /usr/share/nidaos/nftables.nft
+ExecStop=/usr/sbin/nft delete table inet nidaos
+
+[Install]
+WantedBy=multi-user.target

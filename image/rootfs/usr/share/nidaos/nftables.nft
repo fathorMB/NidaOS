@@ -1,0 +1,32 @@
+#!/usr/sbin/nft -f
+# The network protection of NidaOS (milestone M-11, task T-05).
+#
+# The home network can open only the services of NidaOS: SSH (22), the
+# apps and the console through Traefik (80, 443), Remote Desktop (3389),
+# the API (8470), the databases that the owner opens (15432-15531) and
+# mDNS (5353/udp). This table closes the internal ports of k3s to the home
+# network: the API of Kubernetes (6443), the kubelet (10250), the metrics
+# of k3s (10257, 10259) and the network of the pods (8472/udp). The
+# computer itself and the pods keep the access.
+#
+# The table is separate from the tables of k3s, thus k3s can change its
+# own rules.
+
+table inet nidaos
+delete table inet nidaos
+
+table inet nidaos {
+	set internal_tcp {
+		type inet_service
+		elements = { 6443, 10250, 10257, 10259 }
+	}
+
+	chain input {
+		type filter hook input priority filter - 10; policy accept;
+		iifname "lo" accept
+		fib saddr type local accept
+		ip saddr { 10.42.0.0/16, 10.43.0.0/16 } accept
+		tcp dport @internal_tcp counter drop
+		udp dport 8472 counter drop
+	}
+}

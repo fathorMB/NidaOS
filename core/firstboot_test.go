@@ -37,6 +37,10 @@ func TestFirstboot(t *testing.T) {
 		return nil, nil
 	}
 	homeOf := func(string) (string, int, int, error) { return home, os.Getuid(), os.Getgid(), nil }
+	var unixPassword string
+	old := chpasswdRun
+	chpasswdRun = func(_ context.Context, user, pw string) error { unixPassword = user + ":" + pw; return nil }
+	defer func() { chpasswdRun = old }()
 	var out, errOut bytes.Buffer
 	code := firstboot(file, authFile, run, homeOf, &out, &errOut)
 	if code != 0 {
@@ -68,6 +72,9 @@ func TestFirstboot(t *testing.T) {
 	}
 	if _, err := os.Stat(file); !os.IsNotExist(err) {
 		t.Error("the file with the password stays")
+	}
+	if unixPassword != "owner:a long owner password" {
+		t.Errorf("unix password = %q", unixPassword)
 	}
 	if strings.Contains(out.String()+errOut.String(), "a long owner password") {
 		t.Error("the output has the password")
