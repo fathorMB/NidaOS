@@ -24,19 +24,10 @@ var day1 = time.Date(2026, 11, 9, 10, 0, 0, 0, time.UTC)
 
 func openTestStore(t *testing.T, dir string, c *clock) *Store {
 	t.Helper()
-	s, err := OpenStore(dir, 0, 0, quiet)
+	s, err := openStore(dir, 0, 0, quiet, c.now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.Now = c.now
-	// OpenStore used the real clock for the first file: open it again
-	// with the test clock.
-	s.mu.Lock()
-	s.closeFile()
-	if err := s.openDay(s.today()); err != nil {
-		t.Fatal(err)
-	}
-	s.mu.Unlock()
 	t.Cleanup(s.Close)
 	return s
 }
