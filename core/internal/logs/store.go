@@ -63,6 +63,12 @@ const (
 
 // OpenStore makes the directory and opens the file of today.
 func OpenStore(dir string, retention time.Duration, maxBytes int64, logger *slog.Logger) (*Store, error) {
+	return openStore(dir, retention, maxBytes, logger, time.Now)
+}
+
+// openStore is OpenStore with a clock. The tests give a test clock: with
+// the real clock, the store makes a file for the real day.
+func openStore(dir string, retention time.Duration, maxBytes int64, logger *slog.Logger, now func() time.Time) (*Store, error) {
 	if retention <= 0 {
 		retention = DefaultRetention
 	}
@@ -72,7 +78,7 @@ func OpenStore(dir string, retention time.Duration, maxBytes int64, logger *slog
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return nil, fmt.Errorf("log store: %w", err)
 	}
-	s := &Store{Dir: dir, Retention: retention, MaxBytes: maxBytes, Logger: logger, Now: time.Now}
+	s := &Store{Dir: dir, Retention: retention, MaxBytes: maxBytes, Logger: logger, Now: now}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.openDay(s.today()); err != nil {
