@@ -1017,7 +1017,7 @@ extension_active() {
         "${SSH[@]}" "cat > /tmp/desktop-check.sh; ls -l /tmp/desktop-check.sh" < "$REPO/scripts/desktop-check.sh"
         echo "copy: exit $?"
         echo "## run the script"
-        "${SSH[@]}" "timeout 240 bash -x /tmp/desktop-check.sh" < /dev/null
+        "${SSH[@]}" "timeout 420 bash -x /tmp/desktop-check.sh" < /dev/null
         echo "run: exit $?"
     } > desktop-shell.log 2>&1
     "${SSH[@]}" "cat /tmp/nida-desktop.png" < /dev/null > screen-nida-desktop.png 2> /dev/null || true

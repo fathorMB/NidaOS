@@ -377,13 +377,13 @@ class Desktop {
             u.x_align = Clutter.ActorAlign.END;
             head.add_child(u);
             box.add_child(head);
-            const bar = new St.BoxLayout({style_class: 'nida-bar', x_expand: true});
+            // A bar of a fixed width: a size that follows the width of the
+            // card can make an endless layout loop.
+            const BAR = 360;
+            const bar = new St.BoxLayout({style_class: 'nida-bar', width: BAR});
             const pct = t.usage && t.usage.total_bytes ? t.usage.used_bytes / t.usage.total_bytes : 0;
-            const fill = new St.Widget({style_class: 'nida-bar-fill', style: `background-color: ${TIER_COLOR[t.name]};`});
+            const fill = new St.Widget({style_class: 'nida-bar-fill', style: `background-color: ${TIER_COLOR[t.name]};`, width: Math.max(2, Math.round(BAR * pct))});
             bar.add_child(fill);
-            bar.connect('notify::width', () => {
-                fill.width = Math.round(bar.width * pct);
-            });
             box.add_child(bar);
             const disk = d.state.disks?.find(x => x.name === t.disk);
             box.add_child(label(disk ? `${disk.model || disk.name} · ${disk.kind.toUpperCase()}` : 'no disk', 'nida-sub'));

@@ -16,13 +16,13 @@ gnome-shell --headless --virtual-monitor 1280x800 --unsafe-mode > /tmp/nida-shel
 shell=$!
 for _ in $(seq 1 40); do
     sleep 3
-    gnome-extensions info nidaos@nidaos.local 2> /dev/null | grep -Eq 'State: (ACTIVE|ENABLED)' && break
+    timeout 10 gnome-extensions info nidaos@nidaos.local 2> /dev/null | grep -Eq 'State: (ACTIVE|ENABLED)' && break
 done
-gnome-extensions info nidaos@nidaos.local
+timeout 20 gnome-extensions info nidaos@nidaos.local
 # The extension reads nida-core: wait for the first data, then take the
 # screenshot.
 sleep 10
-gdbus call --session --dest org.gnome.Shell.Screenshot --object-path /org/gnome/Shell/Screenshot \
+timeout 20 gdbus call --session --dest org.gnome.Shell.Screenshot --object-path /org/gnome/Shell/Screenshot \
     --method org.gnome.Shell.Screenshot.Screenshot false false /tmp/nida-desktop.png || true
 kill "$shell" 2> /dev/null
 wait "$shell" 2> /dev/null
