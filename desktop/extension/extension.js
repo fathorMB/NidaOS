@@ -334,6 +334,11 @@ class Desktop {
 
     drawState() {
         const d = this._data;
+        // The VM test looks for this line in the log of the shell.
+        if (!this._shown && d.state) {
+            this._shown = true;
+            console.log('NidaOS desktop: the first data from nida-core is on the screen');
+        }
         // The top bar.
         const items = [];
         if (d.updates?.staged)
@@ -480,6 +485,7 @@ export default class NidaDesktopExtension extends Extension {
         this._desktop = new Desktop(this);
         this._desktop.build();
         this._desktop.start();
+        console.log('NidaOS desktop: enabled');
     }
 
     disable() {

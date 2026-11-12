@@ -1022,7 +1022,8 @@ extension_active() {
     } > desktop-shell.log 2>&1
     "${SSH[@]}" "cat /tmp/nida-desktop.png" < /dev/null > screen-nida-desktop.png 2> /dev/null || true
     [ -s screen-nida-desktop.png ] || rm -f screen-nida-desktop.png
-    grep -Eq "State: (ACTIVE|ENABLED)" desktop-shell.log
+    grep -q "NidaOS desktop: the first data from nida-core is on the screen" desktop-shell.log &&
+        ! grep -q "JS ERROR" desktop-shell.log
 }
 expect "the image has the NidaOS extension, on for each user" desktop_installed
 expect "the log program reads the logs and the live stream" logs_program
