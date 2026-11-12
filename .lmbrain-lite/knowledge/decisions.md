@@ -172,3 +172,7 @@ The lead selected this on 2026-11-12 for M-09. **To review by the operator.** Wi
 ## D37 — The order of the milestones in the night of 2026-11-12
 
 The lead selected this on 2026-11-12. **To review by the operator.** The operator asked the lead to continue all the approved milestones alone. The lead does M-09 (agents) and M-11 (updates and security) before M-08 (desktop), because a VM test can examine them fully. M-08 needs a visual check of the remote desktop, and M-10 and M-12 need hardware (the Raspberry Pi and the real computer).
+
+## D38 — The desktop reads nida-core through the local socket
+
+The lead selected this on 2026-11-12 for M-08. **To review by the operator.** The GNOME extension and the two programs (logs and files, GTK 4 in GJS) use the local socket of nida-core: the owner is in the group nida (decision D18), thus they need no token and no password. The file program opens the files with the permissions of the owner: a folder of an app that only the app can read shows a note. The folders of the storage tiers show the app or the database that uses them, from the names of the volumes of k3s. The dock button "Console" tells the address of the web console, because the image has no web browser.
