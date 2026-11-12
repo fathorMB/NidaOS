@@ -1029,6 +1029,10 @@ expect "the image has the NidaOS extension, on for each user" desktop_installed
 expect "the log program reads the logs and the live stream" logs_program
 expect "the file program shows the tiers and the apps of the folders" files_program
 expect "GNOME Shell loads the NidaOS extension in the session of the owner" extension_active
+stream_live() {
+    grep 'NidaOS desktop: the live stream is' desktop-shell.log | tail -n 1 | grep -q 'is live$'
+}
+expect "the live stream of the desktop stays live" stream_live
 {
     echo "## desktop"
     echo "GNOME Shell $("${SSH[@]}" cat /usr/lib/nidaos/gnome-version 2> /dev/null)"
