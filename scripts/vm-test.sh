@@ -10,7 +10,15 @@
 # The hard disk is the first disk on the bus. Thus the test fails if the
 # installer selects the disks by their sequence.
 #
+# QEMU limits the read speed of each disk, thus the speed test of the
+# installer gives the same order in each run: ssd-a 600 MB/s, ssd-b
+# 400 MB/s, hdd 150 MB/s.
+#
 # Expected plan: system on ssd-a, "performance" on ssd-b, "standard" on hdd.
+#
+# Before the installation, the test starts the installer two more times
+# with other sets of disks and only reads the plan (install.json with
+# "plan_only"). Then it installs without questions (milestone M-07).
 
 set -euo pipefail
 
@@ -26,6 +34,7 @@ OVMF_CODE=/usr/share/OVMF/OVMF_CODE_4M.fd
 OVMF_VARS=/usr/share/OVMF/OVMF_VARS_4M.fd
 
 GIB=$((1024 * 1024 * 1024))
+MB=1000000
 SIZE_SSD_A=$((24 * GIB))
 SIZE_SSD_B=$((32 * GIB))
 SIZE_HDD=$((64 * GIB))
@@ -38,12 +47,22 @@ qemu-img create -q -f qcow2 hdd.qcow2 "$SIZE_HDD"
 qemu-img create -q -f qcow2 ssd-b.qcow2 "$SIZE_SSD_B"
 qemu-img create -q -f qcow2 ssd-a.qcow2 "$SIZE_SSD_A"
 
-# The seed volume gives the SSH key of the test to the installer.
+# The seed volume gives the SSH key of the test and the answers of the
+# automatic installation (install.json) to the installer. The owner
+# password of the installer is also the password of nida-core and of
+# Remote Desktop (decision D34).
 rm -f id_test id_test.pub
 ssh-keygen -q -t ed25519 -N '' -C nida-vm-test -f id_test
-mkdir -p seed
-cp id_test.pub seed/authorized_keys
-xorriso -as mkisofs -quiet -J -r -V NIDASEED -o seed.iso seed
+owner_password=$(head -c 18 /dev/urandom | base64 | tr -d '/+=')
+make_seed() {
+    local dir=$1 json=$2
+    rm -rf "$dir" && mkdir -p "$dir"
+    cp id_test.pub "$dir/authorized_keys"
+    printf '%s\n' "$json" > "$dir/install.json"
+    xorriso -as mkisofs -quiet -J -r -V NIDASEED -o "$dir.iso" "$dir"
+}
+make_seed seed "{\"plan\":\"proposed\",\"erase\":\"yes\",\"after\":\"poweroff\",\"hostname\":\"nidaos\",\"user\":\"nida\",\"password\":\"$owner_password\",\"keyboard\":\"it\",\"timezone\":\"Europe/Rome\"}"
+make_seed seed-plan '{"plan_only":true}'
 
 QEMU=(
     qemu-system-x86_64
@@ -51,13 +70,13 @@ QEMU=(
     -display none
     -drive "if=pflash,format=raw,readonly=on,file=$OVMF_CODE"
     -drive "if=pflash,format=raw,file=vars.fd"
-    -drive "id=d0,if=none,format=qcow2,file=hdd.qcow2"
+    -drive "id=d0,if=none,format=qcow2,file=hdd.qcow2,throttling.bps-read=$((150 * MB))"
     -device "ide-hd,drive=d0,bus=ide.0,rotation_rate=7200"
-    -drive "id=d1,if=none,format=qcow2,file=ssd-b.qcow2"
+    -drive "id=d1,if=none,format=qcow2,file=ssd-b.qcow2,throttling.bps-read=$((400 * MB))"
     -device "ide-hd,drive=d1,bus=ide.1,rotation_rate=1"
-    -drive "id=d2,if=none,format=qcow2,file=ssd-a.qcow2"
+    -drive "id=d2,if=none,format=qcow2,file=ssd-a.qcow2,throttling.bps-read=$((600 * MB))"
     -device "ide-hd,drive=d2,bus=ide.2,rotation_rate=1"
-    -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:3389-:3389,hostfwd=tcp:127.0.0.1:8470-:8470,hostfwd=tcp:127.0.0.1:15432-:15432,hostfwd=tcp:127.0.0.1:8443-:443"
+    -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:3389-:3389,hostfwd=tcp:127.0.0.1:8470-:8470,hostfwd=tcp:127.0.0.1:15432-:15432,hostfwd=tcp:127.0.0.1:8443-:443,hostfwd=tcp:127.0.0.1:8092-:80"
     -device "virtio-net-pci,netdev=n0"
     -serial "file:serial.log"
     -monitor "unix:monitor.sock,server,nowait"
@@ -75,6 +94,65 @@ show_serial() {
     echo "---- end of the serial console ----"
 }
 
+failures=0
+plan_failures=0
+
+# plan_of reads the plan of the installer page: "system=sdc performance=sdb standard=sda".
+plan_of() {
+    curl -s --max-time 5 "http://127.0.0.1:$1/api/state" 2>/dev/null | python3 -c '
+import json, sys
+s = json.load(sys.stdin)
+if s.get("phase") != "ready" or not s["plan"]["roles"]:
+    sys.exit(1)
+r = {v: k for k, v in s["plan"]["roles"].items()}
+print(" ".join("%s=%s" % (x, r.get(x, "")) for x in ("system", "performance", "standard")))
+' 2>/dev/null
+}
+
+# plan_set starts the installer with an other set of disks and only reads
+# the plan. $1: the name, $2: the expected plan, the rest: the QEMU disks.
+plan_set() {
+    local name=$1 want=$2 got="" waited=0 pid
+    shift 2
+    qemu-system-x86_64 -machine q35,accel=kvm -cpu host -smp 2 -m 3072 -display none \
+        -drive "if=pflash,format=raw,readonly=on,file=$OVMF_CODE" -drive "if=pflash,format=raw,file=vars-$name.fd" \
+        "$@" \
+        -drive "id=pcd0,if=none,media=cdrom,readonly=on,format=raw,file=$ISO" -device "ide-cd,drive=pcd0,bus=ide.3,bootindex=0" \
+        -drive "id=pcd1,if=none,media=cdrom,readonly=on,format=raw,file=seed-plan.iso" -device "ide-cd,drive=pcd1,bus=ide.4" \
+        -netdev "user,id=pn0,hostfwd=tcp:127.0.0.1:8091-:80" -device "virtio-net-pci,netdev=pn0" \
+        -serial "file:serial-$name.log" -no-reboot &
+    pid=$!
+    while [ "$waited" -lt 600 ] && kill -0 "$pid" 2>/dev/null; do
+        if got=$(plan_of 8091); then
+            break
+        fi
+        sleep 10
+        waited=$((waited + 10))
+    done
+    curl -s --max-time 5 http://127.0.0.1:8091/api/state > "plan-$name.json" || true
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    if [ "$got" = "$want" ]; then
+        echo "PASS the installer plans the disk set '$name': $got" | tee -a plans.txt
+    else
+        echo "FAIL the installer plans the disk set '$name': '$got', expected '$want'" | tee -a plans.txt
+        plan_failures=$((plan_failures + 1))
+    fi
+}
+
+echo "==> Make the plan with other sets of disks (M-07)"
+for n in one mixed; do cp "$OVMF_VARS" "vars-$n.fd"; done
+qemu-img create -q -f qcow2 one-nvme.qcow2 $((20 * GIB))
+plan_set one "system=nvme0n1 performance= standard=" \
+    -drive "id=o0,if=none,format=qcow2,file=one-nvme.qcow2" -device "nvme,drive=o0,serial=one0"
+for d in m-hdd1:40 m-hdd2:60 m-ssd:30 m-nvme:20; do qemu-img create -q -f qcow2 "${d%%:*}.qcow2" $((${d##*:} * GIB)); done
+plan_set mixed "system=nvme0n1 performance=sdb standard=sdc" \
+    -drive "id=m0,if=none,format=qcow2,file=m-hdd1.qcow2" -device "ide-hd,drive=m0,bus=ide.0,rotation_rate=7200" \
+    -drive "id=m1,if=none,format=qcow2,file=m-ssd.qcow2" -device "ide-hd,drive=m1,bus=ide.1,rotation_rate=1" \
+    -drive "id=m2,if=none,format=qcow2,file=m-hdd2.qcow2" -device "ide-hd,drive=m2,bus=ide.2,rotation_rate=7200" \
+    -drive "id=m3,if=none,format=qcow2,file=m-nvme.qcow2" -device "nvme,drive=m3,serial=mix3"
+rm -f one-nvme.qcow2 m-*.qcow2
+
 echo "==> Install from $ISO"
 "${QEMU[@]}" \
     -drive "id=cd0,if=none,media=cdrom,readonly=on,format=raw,file=$ISO" \
@@ -84,13 +162,30 @@ echo "==> Install from $ISO"
     -no-reboot &
 qemu_pid=$!
 
-# The installer restarts the machine at the end. With -no-reboot, QEMU stops then.
+# The installer stops the machine at the end ("after": "poweroff"). The
+# runner follows the installation on the page, as a browser of an other
+# computer: the page gives no control to it.
 waited=0
+followed=""
 while kill -0 "$qemu_pid" 2>/dev/null; do
-    if [ "$waited" -ge "$INSTALL_TIMEOUT" ]; then
+    if [ -z "$followed" ] && curl -s --max-time 5 http://127.0.0.1:8092/api/state > follow.json 2>/dev/null &&
+        grep -q '"phase":"installing"' follow.json; then
+        followed=yes
+        screenshot screen-installer.png
+    fi
+    # The state and the log of the installer page, for a failure.
+    curl -s --max-time 5 http://127.0.0.1:8092/api/state > install-state.json.new 2> /dev/null &&
+        [ -s install-state.json.new ] && mv install-state.json.new install-state.json
+    curl -s --max-time 5 http://127.0.0.1:8092/api/log > install-api.log.new 2> /dev/null &&
+        [ -s install-api.log.new ] && mv install-api.log.new install-api.log
+    failed_early=""
+    grep -q '"phase":"failed"' install-state.json 2> /dev/null && failed_early=yes
+    if [ "$waited" -ge "$INSTALL_TIMEOUT" ] || [ -n "$failed_early" ]; then
         screenshot screen-install-timeout.png
         kill "$qemu_pid" || true
-        echo "error: the installation did not complete in $INSTALL_TIMEOUT seconds" >&2
+        echo "error: the installation did not complete (after $waited seconds)" >&2
+        python3 -c 'import json; s = json.load(open("install-state.json")); print("phase:", s["phase"], "error:", s.get("error")); [print(" ", x["name"], x["state"], x["seconds"]) for x in s["steps"]]' 2> /dev/null || true
+        tail -n 80 install-api.log 2> /dev/null || true
         show_serial 150
         exit 1
     fi
@@ -133,13 +228,13 @@ screenshot screen-boot.png
     echo "## nidaos release"
     "${SSH[@]}" cat /usr/lib/nidaos/release
 } | tee report.txt
+cat plans.txt >> report.txt 2>/dev/null || true
 
 # Print "<size in bytes> <rotational>" for the disk that contains a mount point.
 disk_of() {
     "${SSH[@]}" "lsblk -bndo SIZE,ROTA /dev/\$(lsblk -ndo PKNAME \$(findmnt -no SOURCE $1))" | xargs
 }
 
-failures=0
 check() {
     local label=$1 mount=$2 expected=$3 actual
     actual=$(disk_of "$mount")
@@ -168,7 +263,29 @@ expect() {
 }
 
 expect "the installed system keeps the disk plan" \
-    "${SSH[@]}" sudo grep -q '^os=' /var/lib/nidaos/install-plan.txt
+    "${SSH[@]}" sudo grep -q '^os=sdc$' /var/lib/nidaos/install-plan.txt
+failures=$((failures + plan_failures))
+follow_read_only() {
+    [ -n "$followed" ] && grep -q '"control":false' follow.json && grep -q '"auto":true' follow.json &&
+        ! grep -q "$owner_password" follow.json
+}
+expect "a browser of an other computer follows the installation without control" follow_read_only
+owner_groups() {
+    local groups
+    groups=$("${SSH[@]}" id -nG) && [[ " $groups " == *" nida "* ]] && [[ " $groups " == *" wheel "* ]]
+}
+expect "the first start makes the owner in the groups nida and wheel" owner_groups
+expect "the first start deletes the file with the password" "${SSH[@]}" "sudo test ! -e /var/lib/nidaos/firstboot.json"
+expect "the computer has the name of the installer" "${SSH[@]}" "test \$(hostname) = nidaos"
+expect "the time zone of the installer is set" "${SSH[@]}" "timedatectl show -p Timezone --value | grep -qx Europe/Rome"
+{
+    echo "## installer: first start"
+    "${SSH[@]}" "sudo journalctl -b -u nida-firstboot.service --no-pager | tail -n 20" || true
+    echo "## installer: log"
+    "${SSH[@]}" "sudo tail -n 40 /var/lib/nidaos/install.log" || true
+    echo "## fstab"
+    "${SSH[@]}" cat /etc/fstab || true
+} | tee -a report.txt
 
 echo "==> Examine k3s and the two storage tiers"
 k3s_ready() {
@@ -203,7 +320,7 @@ expect "the standard volume is on the standard disk" \
 echo "==> Examine the core service and the nida command (M-02)"
 CORE=http://127.0.0.1:8470
 journal_marker="nida-journal-proof-$(head -c 6 /dev/urandom | od -An -tx1 | tr -d ' \n')"
-owner_password=$(head -c 18 /dev/urandom | base64 | tr -d '/+=')
+# owner_password comes from the seed of the installation (see above).
 
 # Run a check again until it passes, for a maximum of $1 seconds.
 retry() {
@@ -254,6 +371,10 @@ token_access() {
         [ "$(http_code -H "Authorization: Bearer $token" "$CORE/api/v1/metrics")" = 200 ] &&
         [ "$(http_code -H "Authorization: Bearer $token" "$CORE/api/v1/tokens")" = 403 ]
 }
+installer_password_sign_in() {
+    [ "$(http_code -X POST -H 'Content-Type: application/json' \
+        -d "{\"password\":\"$owner_password\"}" "$CORE/api/v1/auth/login")" = 200 ]
+}
 owner_sign_in() {
     printf '%s\n' "$owner_password" | "${SSH[@]}" sudo nida-core set-password > /dev/null &&
         [ "$(http_code -X POST -H 'Content-Type: application/json' \
@@ -290,6 +411,7 @@ expect "the logs show a line of the journal with the source and the level" retry
 expect "the log search finds the line in the store" retry 30 store_search
 expect "through the network, the API needs a sign-in" tcp_needs_sign_in
 expect "a read token gives the metrics but not the tokens" token_access
+expect "the owner signs in to nida-core with the password of the installer" installer_password_sign_in
 expect "the owner signs in with the password from nida-core set-password" owner_sign_in
 expect "the owner uses nida through the local socket without sudo" owner_uses_socket
 expect "a user outside the group nida cannot open the local socket" other_user_no_socket
@@ -791,6 +913,10 @@ rdp_login() {
 }
 expect "the display manager is active" "${SSH[@]}" systemctl is-active --quiet gdm.service
 expect "the RDP setup completed" "${SSH[@]}" systemctl is-active --quiet nida-rdp-setup.service
+rdp_owner_login() {
+    rdp_listens && xfreerdp3 /v:127.0.0.1:3389 /u:nida "/p:$owner_password" /cert:ignore +auth-only > rdp-owner.log 2>&1
+}
+expect "an RDP client logs in with the owner password of the installer" rdp_owner_login
 expect "the administrator can set the RDP credentials" \
     "${SSH[@]}" "sudo grdctl --system rdp set-credentials nida $rdp_password && sudo systemctl restart gnome-remote-desktop.service"
 expect "the RDP service listens on port 3389" rdp_listens
@@ -800,7 +926,7 @@ expect "an RDP client can log in to the RDP service" rdp_login
     "${SSH[@]}" sudo grdctl --system status || true
     echo "default target: $("${SSH[@]}" systemctl get-default)"
     "${SSH[@]}" systemctl status --no-pager -n 15 gdm.service || true
-    "${SSH[@]}" "sudo cat /var/lib/nidaos/install-post.log" || true
+    "${SSH[@]}" "sudo tail -n 20 /var/lib/nidaos/install.log" || true
     "${SSH[@]}" systemctl status --no-pager -n 15 gnome-remote-desktop.service nida-rdp-setup.service || true
     tail -n 15 rdp-client.log || true
 } | tee -a report.txt

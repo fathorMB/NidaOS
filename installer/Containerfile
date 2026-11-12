@@ -1,57 +1,78 @@
-# NidaOS installer image (feasibility proof, milestone M-01).
+# NidaOS installer image (milestone M-07, decisions D12, D32 and D33).
 #
 # image-builder makes a bootable ISO from this container (image type
-# bootc-generic-iso). The ISO starts Anaconda. Anaconda installs the NidaOS
-# image, which image-builder puts in the container storage of the ISO.
+# generic-iso). The ISO starts this container as a live system. The live
+# system runs nida-installer and shows its page in full screen with a
+# kiosk browser. nida-installer makes the partitions and installs the
+# NidaOS image with "bootc install to-filesystem". image-builder puts the
+# NidaOS image (the payload) in /var/lib/containers/storage of the ISO.
 #
-# Source of the Anaconda setup: the image-builder guide
-# "Generating a Fedora 45 Live ISO with Anaconda for bootc Image Installation".
+# Build it with the source of the core service and of the console:
+#   podman build --build-context core=core --build-context console=console \
+#       --build-arg PAYLOAD_REF=... -f installer/Containerfile installer
+
+# The installer page: the entry installer.html of the console project.
+FROM docker.io/library/node:24 AS ui-build
+WORKDIR /src
+COPY --from=console package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY --from=console . .
+RUN npm run typecheck && npx vitest run && npx vite build --config vite.installer.config.ts --outDir /out/dist --emptyOutDir
+
+# nida-installer, a static program.
+FROM docker.io/library/golang:1.26 AS installer-build
+ARG NIDAOS_BUILD=dev
+WORKDIR /src
+COPY --from=core . .
+COPY --from=ui-build /out/dist/ ./internal/installerui/dist/
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
+        -ldflags "-s -w -X github.com/fathorMB/NidaOS/core/internal/version.Version=${NIDAOS_BUILD}" \
+        -o /out/nida-installer ./cmd/nida-installer
+
 FROM quay.io/fedora/fedora-bootc:45
 
 # The reference of the NidaOS image that the installer installs.
 ARG PAYLOAD_REF=ghcr.io/fathormb/nidaos:proof
 
-# Installer tools and boot media tools.
+# The tools of the ISO (image-builder generic-iso), of the disks, and of
+# the kiosk screen. No Anaconda (decision D33).
 RUN dnf5 install -qy \
-    anaconda \
-    anaconda-install-img-deps \
-    anaconda-dracut \
-    dracut-config-generic \
-    dracut-network \
-    net-tools \
+    dracut-live \
     grub2-efi-x64-cdboot \
-    plymouth \
-    default-fonts-core-sans \
-    default-fonts-other-sans \
+    grub2-pc-modules \
+    isomd5sum \
     xorrisofs \
     squashfs-tools \
-    jq && \
+    gdisk \
+    parted \
+    dosfstools \
+    xfsprogs \
+    e2fsprogs \
+    cage \
+    firefox \
+    mesa-dri-drivers \
+    default-fonts-core-sans \
+    default-fonts-other-sans && \
     dnf5 clean all
 
 RUN mkdir -p /boot/efi && cp -ra /usr/lib/efi/*/*/EFI /boot/efi
 
-# The boot menu, the NidaOS kickstart and the disk plan script.
 COPY rootfs/ /
-RUN chmod 0755 /usr/libexec/nidaos/nida-plan.sh && \
-    sed -i "s|@@PAYLOAD_REF@@|${PAYLOAD_REF}|g" /usr/share/nidaos/install.ks && \
-    ! grep -q '@@' /usr/share/nidaos/install.ks && \
-    cp /usr/share/nidaos/install.ks /usr/share/anaconda/interactive-defaults.ks
+COPY --from=installer-build /out/nida-installer /usr/bin/nida-installer
 
-# Changes that Anaconda needs in this environment.
-RUN echo "install:x:0:0:root:/root:/usr/libexec/anaconda/run-anaconda" >> /etc/passwd && \
-    echo "install::14438:0:99999:7:::" >> /etc/shadow && \
-    passwd -d root
-RUN mv /usr/share/anaconda/list-harddrives-stub /usr/bin/list-harddrives && \
-    mv /usr/share/dnf5/repos.d /etc/anaconda.repos.d && \
-    ln -s /lib/systemd/system/anaconda.target /etc/systemd/system/default.target && \
-    rm -v /usr/lib/systemd/system-generators/systemd-gpt-auto-generator
-RUN ln -s /usr/lib/systemd/system/anaconda-shell@.service /usr/lib/systemd/system/autovt@.service
+RUN mkdir -p /usr/share/nidaos && echo "${PAYLOAD_REF}" > /usr/share/nidaos/payload-ref && \
+    systemctl enable nida-installer.service nida-kiosk.service && \
+    systemctl set-default graphical.target
 
-# The initramfs contains the kickstart as /nida.ks. The boot menu gives
-# inst.ks=file:/nida.ks, thus the installation is automatic.
-RUN mkdir -p "$(realpath /root)" && \
-    kernel=$(kernel-install list --json pretty | jq -r '.[] | select(.has_kernel == true) | .version') && \
-    DRACUT_NO_XATTR=1 dracut --force -v --zstd --reproducible --no-hostonly \
-        --add "anaconda" \
-        --include /usr/share/nidaos/install.ks /nida.ks \
-        "/usr/lib/modules/${kernel}/initramfs.img" "${kernel}"
+# Services of an installed bootc system that have no use on the media.
+RUN for unit in bootloader-update.service bootc-fetch-apply-updates.timer \
+        rpm-ostree-fix-shadow-mode.service bootc-generic-growpart.service; do \
+        systemctl mask "$unit" || true; \
+    done
+
+# The initramfs starts the live system from the squashfs file of the ISO
+# (dmsquash-live, see /usr/lib/dracut/dracut.conf.d/40-nidaos-iso.conf).
+RUN kernel=$(ls /usr/lib/modules) && \
+    DRACUT_NO_XATTR=1 dracut --force --zstd --reproducible --no-hostonly \
+        "/usr/lib/modules/${kernel}/initramfs.img" "${kernel}" && \
+    lsinitrd "/usr/lib/modules/${kernel}/initramfs.img" | grep -q dmsquash-live

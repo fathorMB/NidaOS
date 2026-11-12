@@ -15,7 +15,7 @@ on:
         type: boolean
         default: false
   push:
-    branches: [main, "m01-*", "m02-*", "m03-*", "m04-*", "m05-*", "m06-*"]
+    branches: [main, "m01-*", "m02-*", "m03-*", "m04-*", "m05-*", "m06-*", "m07-*"]
     paths:
       - core/**
       - console/**
@@ -76,7 +76,8 @@ jobs:
       - name: Build the installer image
         run: |
           sudo podman build -t localhost/nidaos-installer:proof \
-            --build-arg "PAYLOAD_REF=$IMAGE:$IMAGE_TAG" \
+            --build-arg "PAYLOAD_REF=$IMAGE:$IMAGE_TAG" --build-arg NIDAOS_BUILD=v1 \
+            --build-context core=core --build-context console=console \
             -f installer/Containerfile installer
 
       - name: Build the installer ISO
@@ -107,6 +108,24 @@ jobs:
           cd console
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+
+      - name: Test the installer page in a browser (demonstration mode)
+        run: |
+          mkdir -p out/results
+          (cd console && npx vite build --config vite.installer.config.ts)
+          (cd core && go build -o ../out/nida-installer ./cmd/nida-installer)
+          out/nida-installer --demo --addr 127.0.0.1:8090 > out/results/installer-demo.log 2>&1 &
+          demo=$!
+          trap 'kill $demo' EXIT
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8090/api/state > /dev/null && break; sleep 1; done
+          cd console
+          NIDA_INSTALLER_URL=http://127.0.0.1:8090 NIDA_OUT="$GITHUB_WORKSPACE/out/results" \
+            npx playwright test -c playwright.installer.config.ts
 
       - name: Install and test in a virtual machine
         env:

@@ -67,9 +67,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 0
 	case "set-password":
 		return runSetPassword(os.Stdin, stdout, stderr)
+	case "firstboot":
+		return runFirstboot(stdout, stderr)
 	case "serve":
 	default:
-		fmt.Fprintf(stderr, "nida-core: unknown command %q (use serve, set-password, mdns-lookup or version)\n", cmd)
+		fmt.Fprintf(stderr, "nida-core: unknown command %q (use serve, set-password, firstboot, mdns-lookup or version)\n", cmd)
 		return 2
 	}
 

@@ -12,3 +12,6 @@ core/internal/console/dist/*
 !core/internal/console/dist/README.txt
 console/node_modules/
 console/test-results/
+core/internal/installerui/dist/*
+!core/internal/installerui/dist/README.txt
+console/test-results-installer/

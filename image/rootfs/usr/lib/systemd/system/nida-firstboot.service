@@ -1,0 +1,18 @@
+[Unit]
+Description=Apply the choices of the NidaOS installer at the first start
+Documentation=https://github.com/fathorMB/NidaOS/tree/main/docs/installer.md
+# The installer writes the file (milestone M-07). The command deletes it.
+ConditionPathExists=/var/lib/nidaos/firstboot.json
+After=systemd-sysusers.service systemd-tmpfiles-setup.service nida-rdp-setup.service NetworkManager.service
+Wants=NetworkManager.service
+Before=nida-core.service sshd.service gnome-remote-desktop.service gdm.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/sysconfig/nida-core
+ExecStart=/usr/bin/nida-core firstboot
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

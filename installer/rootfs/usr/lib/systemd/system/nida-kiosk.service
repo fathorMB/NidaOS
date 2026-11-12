@@ -1,0 +1,31 @@
+[Unit]
+Description=The NidaOS installer in full screen (decision D32)
+After=nida-installer.service systemd-user-sessions.service
+Wants=nida-installer.service
+Conflicts=getty@tty1.service
+
+[Service]
+User=kiosk
+PAMName=login
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty-fail
+StandardOutput=journal+console
+StandardError=journal+console
+UtmpIdentifier=tty1
+UtmpMode=user
+# cage shows one program in full screen: Firefox in its kiosk mode. The
+# rules of /usr/lib64/firefox/distribution/policies.json remove the first
+# pages of Firefox. A computer without a graphics card draws with the
+# processor.
+Environment=HOME=/var/lib/kiosk
+Environment=WLR_RENDERER_ALLOW_SOFTWARE=1
+Environment=MOZ_ENABLE_WAYLAND=1
+ExecStart=/usr/bin/cage -s -- /usr/bin/firefox --kiosk --no-remote --private-window http://127.0.0.1/
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=graphical.target

@@ -21,6 +21,7 @@ var files embed.FS
 // thus the router of the console in the browser finds the page.
 type Handler struct {
 	fs    fs.FS
+	page  string
 	index []byte
 }
 
@@ -34,9 +35,13 @@ func New() *Handler {
 }
 
 // NewFS gives a handler for the files of fsys. It is for the tests.
-func NewFS(fsys fs.FS) *Handler {
-	h := &Handler{fs: fsys}
-	if b, err := fs.ReadFile(fsys, "index.html"); err == nil {
+func NewFS(fsys fs.FS) *Handler { return NewFSIndex(fsys, "index.html") }
+
+// NewFSIndex gives a handler with an other page for the paths without a
+// file, for example installer.html for the installer (M-07).
+func NewFSIndex(fsys fs.FS, index string) *Handler {
+	h := &Handler{fs: fsys, page: index}
+	if b, err := fs.ReadFile(fsys, index); err == nil {
 		h.index = b
 	}
 	return h
@@ -56,7 +61,7 @@ then build nida-core again. The API is at <code>/api/v1/</code>.</p></body></htm
 func (h *Handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	securityHeaders(w.Header())
 	name := strings.TrimPrefix(path.Clean("/"+req.URL.Path), "/")
-	if name != "" && name != "index.html" {
+	if name != "" && name != h.page {
 		if b, err := fs.ReadFile(h.fs, name); err == nil {
 			if strings.HasPrefix(name, "assets/") {
 				// Vite puts a hash in the names of these files.
