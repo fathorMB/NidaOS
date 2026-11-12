@@ -49,7 +49,7 @@ RUN dnf5 install -qy \
     xfsprogs \
     e2fsprogs \
     cage \
-    cog \
+    firefox \
     mesa-dri-drivers \
     default-fonts-core-sans \
     default-fonts-other-sans && \

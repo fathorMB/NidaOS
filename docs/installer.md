@@ -12,7 +12,7 @@ This document is for the owner and for the persons that change the installer. Th
    - The largest hard disk is the standard tier. Without a hard disk, the largest disk that is not used is the standard tier.
    - The other disks are not used. The installer does not change them.
    - The installer does not use the installation media, the seed volume, removable, read-only and USB disks, and disks smaller than 8 GB.
-4. `nida-kiosk.service` shows the installer page in full screen (cage and the browser cog). The page has the six steps of the mockup `design/installer`. The owner can change the role of each disk.
+4. `nida-kiosk.service` shows the installer page in full screen (cage and Firefox in its kiosk mode). The page has the six steps of the mockup `design/installer`. The owner can change the role of each disk.
 5. On the review step, the owner writes the computer name. Then the installer:
    1. erases the disks of the plan and makes the partitions (system disk: EFI 600 MB, `/boot` 1 GB, root; tier disk: one XFS partition),
    2. installs the NidaOS image with `bootc install to-filesystem` from the container storage of the media. During the copy, `/var/tmp` is on a storage tier,
