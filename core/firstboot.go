@@ -23,6 +23,7 @@ import (
 	"github.com/fathorMB/NidaOS/core/internal/auth"
 	"github.com/fathorMB/NidaOS/core/internal/config"
 	"github.com/fathorMB/NidaOS/core/internal/installer"
+	"github.com/fathorMB/NidaOS/core/internal/settings"
 )
 
 // FirstbootFile is the file of the installer.
@@ -95,6 +96,23 @@ func firstboot(file, authFile string, run firstbootRunner, home func(string) (st
 		return nil
 	}
 
+	// A backup of the settings from the seed volume (M-11): restore it
+	// first, thus the owner password of the installer replaces the old one.
+	if restore := filepath.Join(filepath.Dir(file), "settings-restore.tar.gz"); fileExists(restore) {
+		step("the settings of the backup are restored", func() error {
+			f, err := os.Open(restore)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			_, err = settings.Restore(f, filepath.Dir(authFile))
+			if err == nil {
+				f.Close()
+				shred(restore)
+			}
+			return err
+		})
+	}
 	if fb.Hostname != "" {
 		step("the computer name is "+fb.Hostname, func() error { return cmd("hostnamectl", "set-hostname", fb.Hostname) })
 	}
@@ -127,6 +145,9 @@ func firstboot(file, authFile string, run firstbootRunner, home func(string) (st
 				return err
 			}
 			return store.SetPassword(fb.Password)
+		})
+		step("the password of "+user+" for sudo is set", func() error {
+			return setUnixPassword(ctx, run, user, fb.Password)
 		})
 		step("the Remote Desktop password of "+user+" is set", func() error {
 			return cmd("grdctl", "--system", "rdp", "set-credentials", user, fb.Password)
@@ -184,6 +205,26 @@ func writeKey(user, key string, home func(string) (string, int, int, error)) err
 		}
 	}
 	return nil
+}
+
+// setUnixPassword sets the password of a user with chpasswd. The password
+// goes through stdin, not the command line. The tests replace chpasswdRun.
+func setUnixPassword(ctx context.Context, _ firstbootRunner, user, password string) error {
+	return chpasswdRun(ctx, user, password)
+}
+
+var chpasswdRun = func(ctx context.Context, user, password string) error {
+	cmd := exec.CommandContext(ctx, "chpasswd")
+	cmd.Stdin = strings.NewReader(user + ":" + password + "\n")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("chpasswd: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+func fileExists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
 }
 
 // shred writes zeros on the file, then deletes it.

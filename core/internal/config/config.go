@@ -114,6 +114,10 @@ type Config struct {
 	// an "ask" rule refuses the request.
 	AgentsFile string
 
+	// UpdateCheck is the time between two checks for a new system version
+	// (M-11). 0: no automatic check.
+	UpdateCheck time.Duration
+
 	// JobAddr is the job endpoint for the runner pods (T-09). It is the
 	// address of the computer on the pod network of k3s.
 	JobAddr string
@@ -219,6 +223,7 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 		BackupDir:       DefaultBackupDir,
 		RunnersFile:     DefaultRunnersFile,
 		AgentsFile:      DefaultAgentsFile,
+		UpdateCheck:     24 * time.Hour,
 		JobAddr:         DefaultJobAddr,
 		PublicURL:       DefaultPublicURL,
 		ConsoleUpstream: DefaultConsoleUpstream,
@@ -360,6 +365,15 @@ func LoadFrom(getenv func(string) string) (Config, error) {
 			cfg.RunnersFile = ""
 		} else {
 			cfg.RunnersFile = v
+		}
+	}
+	if v := strings.TrimSpace(getenv(Prefix + "UPDATE_CHECK")); v != "" {
+		if v == "0" || v == "off" {
+			cfg.UpdateCheck = 0
+		} else if d, err := time.ParseDuration(v); err != nil || d < time.Hour {
+			return Config{}, fmt.Errorf("%sUPDATE_CHECK: use a duration of 1h or more, or 0", Prefix)
+		} else {
+			cfg.UpdateCheck = d
 		}
 	}
 	if v := strings.TrimSpace(getenv(Prefix + "AGENTS_FILE")); v != "" {

@@ -47,6 +47,8 @@ type Engine struct {
 	Step func(i int, state string)
 	// Lines gives the lines of the log for install.log. Nil: no file.
 	Lines func() []string
+	// Settings is a backup of the settings for the first start (M-11).
+	Settings []byte
 }
 
 func (e *Engine) logf(format string, args ...any) {
@@ -352,6 +354,12 @@ func (e *Engine) access(a Answers, disks []Disk, seedKey string) error {
 	// can read it, and nida-core firstboot deletes it.
 	if err := os.WriteFile(filepath.Join(dir, "firstboot.json"), fb, 0o600); err != nil {
 		return err
+	}
+	if len(e.Settings) > 0 {
+		if err := os.WriteFile(filepath.Join(dir, "settings-restore.tar.gz"), e.Settings, 0o600); err != nil {
+			return err
+		}
+		e.logf("the backup of the settings from the seed volume is ready for the first start")
 	}
 	e.logf("computer name %s, owner %s, first-boot file written", a.Hostname, a.User)
 	return nil

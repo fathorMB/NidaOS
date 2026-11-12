@@ -12,6 +12,8 @@ import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const port = Number(process.argv[2] ?? process.env.PORT ?? 8480);
+// MOCK_TTL: the fake API stops after this number of seconds (for the scripts).
+if (process.env.MOCK_TTL) setTimeout(() => process.exit(0), Number(process.env.MOCK_TTL) * 1000).unref();
 const dist = fileURLToPath(new URL('../../core/internal/console/dist/', import.meta.url));
 const PASSWORD = 'mock password';
 const GiB = 1024 ** 3;

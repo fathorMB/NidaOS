@@ -157,6 +157,19 @@
       ]
     },
     {
+      "id": "security",
+      "name": "Security and settings",
+      "description": "The network protection, sudo, the backup of the settings and the quick test cycle (M-11).",
+      "patterns": [
+        "core/internal/settings/**",
+        "core/settings.go",
+        "image/rootfs/usr/share/nidaos/nftables.nft",
+        "image/rootfs/etc/sudoers.d/**",
+        "scripts/quick-test.sh",
+        "docs/security.md"
+      ]
+    },
+    {
       "id": "agents",
       "name": "Agent access",
       "description": "The agent tokens with their rules, the approval requests, the record and the MCP server (M-09).",

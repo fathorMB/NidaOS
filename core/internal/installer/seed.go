@@ -22,6 +22,10 @@ type Seed struct {
 	HasKey     bool   `json:"has_key"`
 	// Auto is the automatic installation of install.json.
 	Auto *Auto `json:"-"`
+	// Settings is settings.tar.gz: a backup of the settings of an other
+	// NidaOS (nida-core settings-backup). The first start restores it.
+	Settings    []byte `json:"-"`
+	HasSettings bool   `json:"has_settings"`
 }
 
 // Auto is install.json on the seed volume (task T-07). It is for the
@@ -47,6 +51,11 @@ func ReadSeedDir(dir string) (Seed, error) {
 		s.HasKey = s.Key != ""
 		if f := strings.Fields(s.Key); len(f) > 2 {
 			s.KeyComment = strings.Join(f[2:], " ")
+		}
+	}
+	if st, err := os.Stat(filepath.Join(dir, "settings.tar.gz")); err == nil && st.Size() <= 64<<20 {
+		if b, err := os.ReadFile(filepath.Join(dir, "settings.tar.gz")); err == nil {
+			s.Settings, s.HasSettings = b, true
 		}
 	}
 	b, err := os.ReadFile(filepath.Join(dir, "install.json"))

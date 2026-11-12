@@ -57,6 +57,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if cmd == "mdns-lookup" {
 		return runMDNSLookup(args[1:], stdout, stderr)
 	}
+	if cmd == "settings-backup" || cmd == "settings-restore" {
+		return runSettings(cmd, args[1:], stdout, stderr)
+	}
 	if len(args) > 1 {
 		fmt.Fprintf(stderr, "nida-core: too many arguments: %v\n", args)
 		return 2
@@ -72,7 +75,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runFirstboot(stdout, stderr)
 	case "serve":
 	default:
-		fmt.Fprintf(stderr, "nida-core: unknown command %q (use serve, set-password, firstboot, mdns-lookup or version)\n", cmd)
+		fmt.Fprintf(stderr, "nida-core: unknown command %q (use serve, set-password, firstboot, settings-backup, settings-restore, mdns-lookup or version)\n", cmd)
 		return 2
 	}
 
@@ -197,12 +200,19 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 	}
 	// The system versions of bootc (the updates page of the console).
 	if _, err := exec.LookPath("bootc"); err == nil {
-		deps.Updates = &httpserver.UpdateHosting{Service: updates.New(ctx, updates.ExecRunner, logger)}
+		svc := updates.New(ctx, updates.ExecRunner, logger)
+		deps.Updates = &httpserver.UpdateHosting{Service: svc}
+		// The daily check for a new version (M-11). NIDA_CORE_UPDATE_CHECK=0
+		// stops it.
+		go svc.CheckEvery(ctx, 10*time.Minute, cfg.UpdateCheck)
 	} else {
 		logger.Info("bootc is not on this computer: the API has no update paths")
 	}
 	// The web console (decision D29).
 	deps.Console = console.New()
+	deps.SettingsDir = filepath.Dir(cfg.AuthFile)
+	// The daily backup of the settings on the standard tier (M-11).
+	go keepSettings(ctx, cfg, func(msg string, args ...any) { logger.Info(msg, args...) })
 	// The approval requests and the record of the agents (M-09).
 	if cfg.AgentsFile != "" {
 		if store, err := agents.Open(cfg.AgentsFile); err != nil {

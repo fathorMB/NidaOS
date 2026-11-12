@@ -201,3 +201,16 @@ func TestMCPOverHTTP(t *testing.T) {
 		t.Errorf("no token: %d", rec.Code)
 	}
 }
+
+func TestSettingsBackupAccess(t *testing.T) {
+	r, _, agent, admin, _ := agentRouter(t)
+	r.settingsDir = t.TempDir()
+	r.addSettingsRoutes()
+	if rec := do(r, call{method: http.MethodGet, path: "/api/v1/settings/backup", header: bearer(agent)}); rec.Code != http.StatusForbidden {
+		t.Errorf("agent: %d", rec.Code)
+	}
+	rec := do(r, call{method: http.MethodGet, path: "/api/v1/settings/backup", header: bearer(admin)})
+	if rec.Code != 200 || rec.Header().Get("Content-Type") != "application/gzip" {
+		t.Errorf("admin: %d %s", rec.Code, rec.Header())
+	}
+}

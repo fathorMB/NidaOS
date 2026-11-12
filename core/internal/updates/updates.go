@@ -293,3 +293,26 @@ func (s *Service) reboot(ctx context.Context) error {
 	_, err := s.run(ctx, "systemctl", "reboot")
 	return err
 }
+
+// CheckEvery runs Check after first, then each interval, until ctx stops
+// (milestone M-11, task T-02). The check only asks the registry: it
+// downloads nothing. The owner downloads and installs the update in the
+// console, thus no update runs without the approval of the owner.
+func (s *Service) CheckEvery(ctx context.Context, first, interval time.Duration) {
+	if interval <= 0 {
+		return
+	}
+	t := time.NewTimer(first)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		if err := s.Check(); err != nil && !errors.Is(err, ErrBusy) {
+			s.logger.Warn("the automatic check for an update did not start", "err", err)
+		}
+		t.Reset(interval)
+	}
+}

@@ -1,3 +1,6 @@
-# Feasibility proof only: the administrators use sudo without a password.
-# The installer makes the user with an SSH key and no password.
-%wheel ALL=(ALL) NOPASSWD: ALL
+# The administrators of NidaOS use sudo with their password (milestone
+# M-11, task T-05). nida-core firstboot sets the password of the owner to
+# the one owner password of the installer (decision D34). The nida
+# command does not need sudo: the members of the group nida use the local
+# socket (decision D18).
+%wheel ALL=(ALL) ALL

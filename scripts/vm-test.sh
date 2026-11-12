@@ -76,7 +76,7 @@ QEMU=(
     -device "ide-hd,drive=d1,bus=ide.1,rotation_rate=1"
     -drive "id=d2,if=none,format=qcow2,file=ssd-a.qcow2,throttling.bps-read=$((600 * MB))"
     -device "ide-hd,drive=d2,bus=ide.2,rotation_rate=1"
-    -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:3389-:3389,hostfwd=tcp:127.0.0.1:8470-:8470,hostfwd=tcp:127.0.0.1:15432-:15432,hostfwd=tcp:127.0.0.1:8443-:443,hostfwd=tcp:127.0.0.1:8092-:80"
+    -netdev "user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:3389-:3389,hostfwd=tcp:127.0.0.1:8470-:8470,hostfwd=tcp:127.0.0.1:15432-:15432,hostfwd=tcp:127.0.0.1:8443-:443,hostfwd=tcp:127.0.0.1:8092-:80,hostfwd=tcp:127.0.0.1:16443-:6443"
     -device "virtio-net-pci,netdev=n0"
     -serial "file:serial.log"
     -monitor "unix:monitor.sock,server,nowait"
@@ -216,6 +216,15 @@ until "${SSH[@]}" true 2>/dev/null; do
     waited=$((waited + 10))
 done
 echo "==> SSH is available after $waited seconds"
+
+# sudo needs the owner password (milestone M-11). The test proves it, then
+# gives itself sudo without a password for the other checks.
+sudo_needs_password=no
+"${SSH[@]}" sudo -n true 2> /dev/null || sudo_needs_password=yes
+sudo_with_password=no
+if printf '%s\n' "$owner_password" | "${SSH[@]}" "sudo -S -p '' sh -c 'echo \"nida ALL=(ALL) NOPASSWD: ALL\" > /etc/sudoers.d/99-vm-test && chmod 0440 /etc/sudoers.d/99-vm-test'"; then
+    sudo_with_password=yes
+fi
 screenshot screen-boot.png
 
 {
@@ -262,6 +271,31 @@ expect() {
     fi
 }
 
+expect "sudo asks for the password of the owner" test "$sudo_needs_password" = yes
+expect "the owner password of the installer opens sudo" test "$sudo_with_password" = yes
+k3s_port_closed() {
+    # From the runner, the VM sees the address 10.0.2.2: the home network.
+    ! curl -sk --max-time 8 -o /dev/null https://127.0.0.1:16443/ &&
+        "${SSH[@]}" "sudo nft list table inet nidaos" > nft.txt &&
+        "${SSH[@]}" "sudo k3s kubectl get nodes" > /dev/null
+}
+# k3s needs some minutes after the first start: the check waits for it.
+# (The helper retry comes later in this script.)
+k3s_port_closed_wait() {
+    local waited=0
+    until k3s_port_closed; do
+        [ "$waited" -ge 600 ] && return 1
+        sleep 10
+        waited=$((waited + 10))
+    done
+}
+expect "the home network cannot open the API port of k3s" k3s_port_closed_wait
+{
+    echo "## firewall"
+    "${SSH[@]}" "systemctl status nida-firewall.service --no-pager -n 20" || true
+    "${SSH[@]}" "sudo nft list table inet nidaos" || true
+    echo "curl to the k3s port from the runner: $(curl -sk --max-time 8 -o /dev/null -w '%{http_code} %{errormsg}' https://127.0.0.1:16443/ 2>&1)"
+} | tee -a report.txt
 expect "the installed system keeps the disk plan" \
     "${SSH[@]}" sudo grep -q '^os=sdc$' /var/lib/nidaos/install-plan.txt
 failures=$((failures + plan_failures))
@@ -665,7 +699,9 @@ command -v psql > /dev/null || apt-get install -y -qq postgresql-client > /dev/n
 expect "a device of the home network connects with verify-full and the NidaOS authority" retry 60 lan_verify_full
 expect "the port of the home network refuses a connection without TLS" lan_plain_refused
 expect "the live metrics show the database" retry 60 db_metrics
-expect "a backup on demand passes" nida_db "backup shop-db --wait"
+# The database can be busy some seconds after the change of the home
+# network: the backup tries again.
+expect "a backup on demand passes" retry 120 nida_db "backup shop-db --wait"
 expect "the service gets the image PostgreSQL 17.7" set_db_images "17=docker.io/library/postgres:17.7-alpine,18=docker.io/library/postgres:18.1-alpine"
 expect "the database controller offers the update to 17.7" retry 120 update_offered
 expect "the minor update to 17.7 passes with a backup before it" db_updated
@@ -961,6 +997,24 @@ expect "the record has the actions of the agent" agent_record
     echo
 } | tee -a report.txt
 
+echo "==> Restore the settings at the first start (M-11)"
+# The path of a new installation: a backup of the settings on the seed
+# volume goes to /var/lib/nidaos/settings-restore.tar.gz, and nida-core
+# firstboot restores it. The test removes the file of the owner password
+# first: the sign-in passes only with the restored file.
+settings_restored() {
+    "${SSH[@]}" "sudo nida-core settings-backup /tmp/nidaos-settings.tar.gz" > settings-restore.log 2>&1 &&
+        "${SSH[@]}" "sudo systemctl stop nida-core.service && sudo mv /var/lib/nidaos/auth.json /tmp/auth.json.old" &&
+        "${SSH[@]}" "sudo install -m 0600 /tmp/nidaos-settings.tar.gz /var/lib/nidaos/settings-restore.tar.gz" &&
+        "${SSH[@]}" "echo '{\"user\":\"nida\",\"groups\":[\"wheel\",\"nida\"]}' | sudo install -m 0600 /dev/stdin /var/lib/nidaos/firstboot.json" &&
+        "${SSH[@]}" "sudo nida-core firstboot" >> settings-restore.log 2>&1 &&
+        "${SSH[@]}" "sudo test -f /var/lib/nidaos/auth.json && sudo test ! -e /var/lib/nidaos/settings-restore.tar.gz" &&
+        "${SSH[@]}" "sudo systemctl start nida-core.service"
+}
+expect "the first start restores a backup of the settings" settings_restored
+expect "the owner signs in with the restored settings" retry 60 installer_password_sign_in
+cat settings-restore.log >> report.txt 2> /dev/null || true
+
 echo "==> Examine the desktop and the RDP service"
 rdp_password=$(head -c 18 /dev/urandom | base64 | tr -d '/+=')
 rdp_listens() {
@@ -1019,6 +1073,10 @@ if [ -n "${UPDATE_REF:-}" ]; then
     }
     expect "the system runs the first image version" \
         "${SSH[@]}" grep -qx "NIDAOS_BUILD=${BUILD_BEFORE:-v1}" /usr/lib/nidaos/release
+    db_ready() {
+        "${SSH[@]}" "sudo nida --json db show upd-db" | grep -q '"state": *"ready"'
+    }
+    expect "a database is in operation before the update" nida_db "add upd-db --wait"
     expect "bootc downloads and stages the new image" update_stage
     updates_staged() {
         "${SSH[@]}" "sudo curl -s --max-time 30 --unix-socket /run/nidaos/core.sock http://nida/api/v1/updates" | grep -q '"staged":{"image":"[^"]*nidaos:v2"'
@@ -1034,6 +1092,7 @@ if [ -n "${UPDATE_REF:-}" ]; then
     expect "the updates API shows the version before for a rollback" retry 30 updates_rollback
     expect "the log store keeps its lines after the update" store_search
     expect "the apps stay in operation after the update" retry 180 page_is api / nida-hello-api
+    expect "the database stays in operation after the update" retry 180 db_ready
     expect "the data on the storage tiers stays after the update" \
         "${SSH[@]}" "sudo sh -c 'grep -qx performance /var/nida/performance/volumes/*/proof.txt'"
     expect "bootc prepares the rollback" "${SSH[@]}" sudo bootc rollback
@@ -1041,6 +1100,7 @@ if [ -n "${UPDATE_REF:-}" ]; then
     expect "the system runs the first image version again" \
         "${SSH[@]}" grep -qx "NIDAOS_BUILD=${BUILD_BEFORE:-v1}" /usr/lib/nidaos/release
     expect "the apps stay in operation after the rollback" retry 180 page_is api / nida-hello-api
+    expect "the database stays in operation after the rollback" retry 180 db_ready
     {
         echo "## bootc status after the rollback"
         "${SSH[@]}" sudo bootc status || true
