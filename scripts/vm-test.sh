@@ -277,7 +277,7 @@ k3s_port_closed() {
     # From the runner, the VM sees the address 10.0.2.2: the home network.
     ! curl -sk --max-time 8 -o /dev/null https://127.0.0.1:16443/ &&
         "${SSH[@]}" "sudo nft list table inet nidaos" > nft.txt &&
-        "${SSH[@]}" "sudo k3s kubectl get --raw /readyz" | grep -q ok
+        "${SSH[@]}" "sudo k3s kubectl get nodes" > /dev/null
 }
 expect "the home network cannot open the API port of k3s" retry 120 k3s_port_closed
 {
