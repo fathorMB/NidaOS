@@ -1012,9 +1012,10 @@ files_program() {
     "${SSH[@]}" "timeout 60 gjs -m /usr/share/nidaos/desktop/nida-files.js --check" > desktop-files.log 2>&1
 }
 extension_active() {
-    scp -q -P 2222 -i id_test -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null         "$REPO/scripts/desktop-check.sh" nida@127.0.0.1:/tmp/desktop-check.sh &&
+    "${SSH[@]}" "cat > /tmp/desktop-check.sh" < "$REPO/scripts/desktop-check.sh" &&
         "${SSH[@]}" "timeout 240 bash /tmp/desktop-check.sh" > desktop-shell.log 2>&1
-    scp -q -P 2222 -i id_test -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null         nida@127.0.0.1:/tmp/nida-desktop.png screen-nida-desktop.png 2> /dev/null || true
+    "${SSH[@]}" "cat /tmp/nida-desktop.png" > screen-nida-desktop.png 2> /dev/null || true
+    [ -s screen-nida-desktop.png ] || rm -f screen-nida-desktop.png
     grep -Eq "State: (ACTIVE|ENABLED)" desktop-shell.log
 }
 expect "the image has the NidaOS extension, on for each user" desktop_installed
