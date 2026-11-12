@@ -19,7 +19,7 @@ generated: true
 | 8 | M-08 | Monitoring desktop | approved | 0/7 | 0% |
 | 9 | M-09 | Agent access | approved | 0/7 | 0% |
 | 10 | M-10 | Internet gateway on a Raspberry Pi | approved | 0/9 | 0% |
-| 11 | M-11 | Updates, rollback and security | active | 5/8 (1 blocked) | 62% |
+| 11 | M-11 | Updates, rollback and security | active | 6/8 (1 blocked) | 75% |
 | 12 | M-12 | Installation on the real computer | approved | 0/6 | 0% |
 
 ## M-01 — Feasibility proof of the Fedora bootc base
