@@ -112,9 +112,20 @@
     {
       "id": "installer",
       "name": "Installer",
-      "description": "The installer ISO and the disk plan.",
+      "description": "The NidaOS installer without Anaconda: the disk planner, the bootc engine, the page of the six steps, the first start and the installation media (M-07).",
       "patterns": [
-        "installer/**"
+        "installer/**",
+        "core/internal/installer/**",
+        "core/internal/installerui/**",
+        "core/cmd/nida-installer/**",
+        "core/firstboot.go",
+        "core/firstboot_test.go",
+        "console/src/installer/**",
+        "console/e2e-installer/**",
+        "console/vite.installer.config.ts",
+        "console/playwright.installer.config.ts",
+        "console/installer.html",
+        "docs/installer.md"
       ]
     },
     {
@@ -156,6 +167,22 @@
         "image/rootfs/etc/sudoers.d/**",
         "scripts/quick-test.sh",
         "docs/security.md"
+      ]
+    },
+    {
+      "id": "agents",
+      "name": "Agent access",
+      "description": "The agent tokens with their rules, the approval requests, the record and the MCP server (M-09).",
+      "patterns": [
+        "core/internal/agents/**",
+        "core/internal/mcp/**",
+        "core/internal/auth/agent.go",
+        "core/internal/httpserver/agents.go",
+        "core/internal/httpserver/agents_test.go",
+        "core/internal/httpserver/mcp.go",
+        "core/cmd/nida/mcp.go",
+        "console/src/pages/agents.tsx",
+        "docs/agents.md"
       ]
     }
   ],

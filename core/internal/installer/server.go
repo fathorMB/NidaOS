@@ -71,11 +71,12 @@ type Server struct {
 	Power func(action string)
 	UI    http.Handler
 
-	mu    sync.Mutex
-	st    State
-	seed  Seed
-	busy  bool
-	ready chan struct{}
+	mu      sync.Mutex
+	factsAt time.Time
+	st      State
+	seed    Seed
+	busy    bool
+	ready   chan struct{}
 }
 
 const maxLog = 4000
@@ -102,7 +103,7 @@ func (s *Server) Start(ctx context.Context) {
 	}
 	disks, err := s.Disks(ctx)
 	s.mu.Lock()
-	s.st.Facts, s.seed = facts, seed
+	s.st.Facts, s.seed, s.factsAt = facts, seed, time.Now()
 	s.st.Seed = seed
 	if seed.Auto != nil {
 		s.st.Auto, s.st.PlanOnly = true, seed.Auto.PlanOnly
@@ -284,8 +285,18 @@ func (s *Server) lines() []string {
 	return append([]string(nil), s.st.Log...)
 }
 
-// Snapshot gives the state for a client.
+// Snapshot gives the state for a client. The facts come again each 10
+// seconds: the network cable can connect after the start.
 func (s *Server) Snapshot(control bool, logTail int) State {
+	s.mu.Lock()
+	refresh := s.Facts != nil && !s.factsAt.IsZero() && time.Since(s.factsAt) > 10*time.Second
+	s.mu.Unlock()
+	if refresh {
+		f := s.Facts()
+		s.mu.Lock()
+		s.st.Facts, s.factsAt = f, time.Now()
+		s.mu.Unlock()
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	st := s.st
