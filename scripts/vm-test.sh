@@ -173,10 +173,17 @@ while kill -0 "$qemu_pid" 2>/dev/null; do
         followed=yes
         screenshot screen-installer.png
     fi
+    # The state and the log of the installer page, for a failure.
+    curl -s --max-time 5 http://127.0.0.1:8092/api/state > install-state.json.new 2> /dev/null &&
+        [ -s install-state.json.new ] && mv install-state.json.new install-state.json
+    curl -s --max-time 5 http://127.0.0.1:8092/api/log > install-api.log.new 2> /dev/null &&
+        [ -s install-api.log.new ] && mv install-api.log.new install-api.log
     if [ "$waited" -ge "$INSTALL_TIMEOUT" ]; then
         screenshot screen-install-timeout.png
         kill "$qemu_pid" || true
         echo "error: the installation did not complete in $INSTALL_TIMEOUT seconds" >&2
+        python3 -c 'import json; s = json.load(open("install-state.json")); print("phase:", s["phase"], "error:", s.get("error")); [print(" ", x["name"], x["state"], x["seconds"]) for x in s["steps"]]' 2> /dev/null || true
+        tail -n 80 install-api.log 2> /dev/null || true
         show_serial 150
         exit 1
     fi
