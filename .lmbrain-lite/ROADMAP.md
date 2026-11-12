@@ -15,7 +15,7 @@ generated: true
 | 4 | M-04 | Managed databases | done | 10/10 | 100% |
 | 5 | M-05 | GitHub runners and the deploy flow | done | 9/9 | 100% |
 | 6 | M-06 | Web console | done | 10/10 | 100% |
-| 7 | M-07 | Installer with the disk planner | active | 0/10 | 0% |
+| 7 | M-07 | Installer with the disk planner | done | 10/10 | 100% |
 | 8 | M-08 | Monitoring desktop | approved | 0/7 | 0% |
 | 9 | M-09 | Agent access | approved | 0/7 | 0% |
 | 10 | M-10 | Internet gateway on a Raspberry Pi | approved | 0/9 | 0% |
@@ -66,7 +66,7 @@ generated: true
 
 ## M-07 — Installer with the disk planner
 
-- `status`: active
+- `status`: done
 - `priority`: 7
 - `file`: milestones/M-07.md
 - `outcome`: The operator installs NidaOS from a USB key with the six steps of the mockup. The installer measures the disks, proposes the plan and erases only after a confirmation.
