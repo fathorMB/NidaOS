@@ -37,7 +37,11 @@ func main() {
 	addr := flag.String("addr", ":80", "the listen address of the installer page")
 	demo := flag.Bool("demo", false, "show the mockup disks and simulate the installation")
 	target := flag.String("target", "/run/nida-install/target", "the mount point of the new system")
+	exitAfter := flag.Duration("exit-after", 0, "stop after this time (for the test scripts)")
 	flag.Parse()
+	if *exitAfter > 0 {
+		time.AfterFunc(*exitAfter, func() { os.Exit(0) })
+	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

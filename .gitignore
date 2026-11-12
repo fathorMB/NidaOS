@@ -15,3 +15,4 @@ console/test-results/
 core/internal/installerui/dist/*
 !core/internal/installerui/dist/README.txt
 console/test-results-installer/
+test-results-installer-bin
