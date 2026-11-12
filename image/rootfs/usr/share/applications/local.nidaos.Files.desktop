@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=NidaOS files
+Comment=The files of the storage tiers and of the home folder
+Exec=gjs -m /usr/share/nidaos/desktop/nida-files.js
+Icon=folder
+Categories=System;FileManager;

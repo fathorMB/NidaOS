@@ -1,0 +1,11 @@
+# The NidaOS desktop (milestone M-08): the extension of NidaOS is on for
+# each user, and the other extensions are off.
+[org/gnome/shell]
+enabled-extensions=['nidaos@nidaos.local']
+disable-user-extensions=false
+# The welcome tour of Fedora does not show.
+welcome-dialog-last-shown-version='999'
+favorite-apps=['local.nidaos.Logs.desktop', 'local.nidaos.Files.desktop', 'org.gnome.Ptyxis.desktop']
+
+[org/gnome/desktop/interface]
+color-scheme='prefer-dark'

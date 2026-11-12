@@ -32,11 +32,11 @@ rm -rf "$WORK/src" "$WORK/out"
 mkdir -p "$WORK/src" "$WORK/out"
 mkdir -p "$WORK/src/console"
 (cd "$REPO/console" && tar --exclude=node_modules --exclude=test-results -cf - .) | (cd "$WORK/src/console" && tar -xf -)
-cp -r "$REPO/core" "$REPO/image" "$REPO/installer" "$REPO/tests" "$REPO/scripts" "$WORK/src/"
+cp -r "$REPO/core" "$REPO/desktop" "$REPO/image" "$REPO/installer" "$REPO/tests" "$REPO/scripts" "$WORK/src/"
 cd "$WORK/src"
 
 echo "==> Build the image"
-podman build -t "$IMAGE:$IMAGE_TAG" --build-arg NIDAOS_BUILD=v1 --build-context core=core --build-context console=console -f image/Containerfile image
+podman build -t "$IMAGE:$IMAGE_TAG" --build-arg NIDAOS_BUILD=v1 --build-context core=core --build-context console=console --build-context desktop=desktop -f image/Containerfile image
 
 echo "==> Build the installer image"
 podman build -t localhost/nidaos-installer:proof \
@@ -63,7 +63,7 @@ echo "==> Build the second image version for the update test"
 podman rm -f nidaos-test-registry > /dev/null 2>&1 || true
 podman run -d --name nidaos-test-registry -p 5000:5000 docker.io/library/registry:2
 trap 'podman rm -f nidaos-test-registry > /dev/null 2>&1 || true' EXIT
-podman build -t localhost:5000/nidaos:v2 --build-arg NIDAOS_BUILD=v2 --build-context core=core --build-context console=console -f image/Containerfile image
+podman build -t localhost:5000/nidaos:v2 --build-arg NIDAOS_BUILD=v2 --build-context core=core --build-context console=console --build-context desktop=desktop -f image/Containerfile image
 podman push --tls-verify=false localhost:5000/nidaos:v2
 
 echo "==> Install and test in a virtual machine"

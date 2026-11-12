@@ -997,6 +997,49 @@ expect "the record has the actions of the agent" agent_record
     echo
 } | tee -a report.txt
 
+echo "==> Examine the NidaOS desktop (M-08)"
+# The extension and the programs read nida-core through the local socket,
+# as the owner. A headless GNOME Shell of the owner loads the extension;
+# its screenshot goes into the test results for a visual check.
+desktop_installed() {
+    "${SSH[@]}" "test -f /usr/share/gnome-shell/extensions/nidaos@nidaos.local/extension.js && test -f /usr/share/nidaos/desktop/api.js" &&
+        "${SSH[@]}" "dconf read /org/gnome/shell/enabled-extensions" | grep -q 'nidaos@nidaos.local'
+}
+logs_program() {
+    "${SSH[@]}" "timeout 90 gjs -m /usr/share/nidaos/desktop/nida-logs.js --check" > desktop-logs.log 2>&1
+}
+files_program() {
+    "${SSH[@]}" "timeout 60 gjs -m /usr/share/nidaos/desktop/nida-files.js --check" > desktop-files.log 2>&1
+}
+extension_active() {
+    {
+        echo "## copy the script"
+        "${SSH[@]}" "cat > /tmp/desktop-check.sh; ls -l /tmp/desktop-check.sh" < "$REPO/scripts/desktop-check.sh"
+        echo "copy: exit $?"
+        echo "## run the script"
+        "${SSH[@]}" "timeout 420 bash /tmp/desktop-check.sh" < /dev/null
+        echo "run: exit $?"
+    } > desktop-shell.log 2>&1
+    "${SSH[@]}" "cat /tmp/nida-desktop.png" < /dev/null > screen-nida-desktop.png 2> /dev/null || true
+    [ -s screen-nida-desktop.png ] || rm -f screen-nida-desktop.png
+    grep -q "NidaOS desktop: the first data from nida-core is on the screen" desktop-shell.log &&
+        ! grep -q "JS ERROR" desktop-shell.log
+}
+expect "the image has the NidaOS extension, on for each user" desktop_installed
+expect "the log program reads the logs and the live stream" logs_program
+expect "the file program shows the tiers and the apps of the folders" files_program
+expect "GNOME Shell loads the NidaOS extension in the session of the owner" extension_active
+stream_live() {
+    grep 'NidaOS desktop: the live stream is' desktop-shell.log | tail -n 1 | grep -q 'is live$'
+}
+expect "the live stream of the desktop stays live" stream_live
+{
+    echo "## desktop"
+    echo "GNOME Shell $("${SSH[@]}" cat /usr/lib/nidaos/gnome-version 2> /dev/null)"
+    cat desktop-logs.log desktop-files.log 2> /dev/null || true
+    tail -n 40 desktop-shell.log 2> /dev/null || true
+} | tee -a report.txt
+
 echo "==> Restore the settings at the first start (M-11)"
 # The path of a new installation: a backup of the settings on the seed
 # volume goes to /var/lib/nidaos/settings-restore.tar.gz, and nida-core

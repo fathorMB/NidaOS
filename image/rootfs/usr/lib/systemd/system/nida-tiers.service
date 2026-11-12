@@ -1,0 +1,15 @@
+[Unit]
+Description=Set the modes of the folders of the storage tiers after their mount
+# The tiers have "nofail" in fstab: they can come after
+# systemd-tmpfiles-setup.service. This unit applies the rules of
+# /usr/lib/tmpfiles.d/nidaos.conf for /var/nida again (milestone M-08).
+After=local-fs.target var-nida-performance.mount var-nida-standard.mount systemd-tmpfiles-setup.service
+Before=k3s.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/systemd-tmpfiles --create --prefix=/var/nida
+
+[Install]
+WantedBy=multi-user.target

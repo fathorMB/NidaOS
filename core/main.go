@@ -211,6 +211,7 @@ func serve(ctx context.Context, ln net.Listener, cfg config.Config, logger *slog
 	// The web console (decision D29).
 	deps.Console = console.New()
 	deps.SettingsDir = filepath.Dir(cfg.AuthFile)
+	deps.Root = cfg.Root
 	// The daily backup of the settings on the standard tier (M-11).
 	go keepSettings(ctx, cfg, func(msg string, args ...any) { logger.Info(msg, args...) })
 	// The approval requests and the record of the agents (M-09).

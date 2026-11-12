@@ -52,6 +52,9 @@ type Router struct {
 	// settingsDir is the folder of the settings (/var/lib/nidaos). Empty:
 	// no backup path.
 	settingsDir string
+	// volumesRoot is the root of the paths of the tiers ("/" on the
+	// computer).
+	volumesRoot string
 	// authority gives the certificate of the NidaOS authority.
 	authority CertSource
 	// auth checks the sessions and the tokens. Nil: no access check.
@@ -98,6 +101,9 @@ type Deps struct {
 	Agents *agents.Store
 	// SettingsDir is the folder of the settings for the backup (M-11).
 	SettingsDir string
+	// Root is the root of the paths of the computer, for the volumes of
+	// the tiers. Empty: "/".
+	Root string
 }
 
 // NewRouter makes the router with all the paths of the service.
@@ -117,6 +123,7 @@ func NewRouter(d Deps) *Router {
 		console:     d.Console,
 		agents:      d.Agents,
 		settingsDir: d.SettingsDir,
+		volumesRoot: d.Root,
 		authority:   d.Authority,
 		limiter:     auth.NewLimiter(),
 		started:     time.Now(),
@@ -142,6 +149,10 @@ func NewRouter(d Deps) *Router {
 	r.addUpdateRoutes()
 	r.addAgentRoutes()
 	r.addSettingsRoutes()
+	r.addVolumeRoutes()
+	if r.volumesRoot == "" {
+		r.volumesRoot = "/"
+	}
 	if r.auth != nil {
 		r.addMCPRoutes()
 	}

@@ -24,6 +24,11 @@ step() { echo "==> $* ($(( $(date +%s) - start )) s)"; }
 step "Go: vet and tests"
 (cd "$REPO/core" && go vet ./... && go test ./...)
 
+step "Desktop: the syntax of the extension and the programs"
+for f in "$REPO"/desktop/lib/*.js "$REPO"/desktop/extension/*.js "$REPO"/desktop/apps/*.js; do
+    node --check "$f"
+done
+
 step "Console: install the tools"
 (cd "$REPO/console" && { [ -d node_modules ] || npm ci --no-audit --no-fund; })
 
