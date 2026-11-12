@@ -69,22 +69,11 @@ async function check() {
     const tiers = await api.get('/api/v1/tiers');
     for (const t of tiers.tiers)
         print(`nida-files: tier ${t.name} ${t.state} ${t.usage ? bytes(t.usage.free_bytes) + ' free' : ''}`);
-    let users = 0;
-    for (const p of places().filter(x => x.tier)) {
-        try {
-            const vols = list(`${p.path}/volumes`);
-            for (const v of vols) {
-                const u = usedBy(v.name);
-                if (u) {
-                    users++;
-                    print(`nida-files: ${p.tier}/volumes/${v.name} is used by ${u}`);
-                }
-            }
-        } catch (e) {
-            print(`nida-files: ${p.path}: ${e.message}`);
-        }
-    }
-    return tiers.tiers.length > 0 && users > 0 ? 0 : 1;
+    // The owner cannot read the folder "volumes": nida-core gives the names.
+    const vols = await api.get('/api/v1/volumes');
+    for (const v of vols.volumes)
+        print(`nida-files: ${v.path} is used by ${v.kind} ${v.user}`);
+    return tiers.tiers.length > 0 && vols.volumes.length > 0 ? 0 : 1;
 }
 
 class FilesWindow {
@@ -153,9 +142,19 @@ class FilesWindow {
             this.error = null;
         } catch (e) {
             this.items = [];
-            this.error = e.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.PERMISSION_DENIED)
-                ? 'Only root and the app can read this folder. Use the terminal with sudo.'
-                : e.message;
+            const denied = e.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.PERMISSION_DENIED);
+            this.error = denied ? 'Only root and the app can read this folder. Use the terminal with sudo.' : e.message;
+            // The volume folders of a tier: nida-core gives their names.
+            if (denied && path.endsWith('/volumes')) {
+                this.error = null;
+                this.api.get('/api/v1/volumes').then(v => {
+                    this.items = v.volumes.filter(x => `${x.path}`.startsWith(path)).map(x => ({name: x.name, dir: true, size: 0}));
+                    this.draw();
+                }).catch(err => {
+                    this.error = err.message;
+                    this.draw();
+                });
+            }
         }
         this.draw();
     }

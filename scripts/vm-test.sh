@@ -1003,23 +1003,9 @@ files_program() {
     "${SSH[@]}" "timeout 60 gjs -m /usr/share/nidaos/desktop/nida-files.js --check" > desktop-files.log 2>&1
 }
 extension_active() {
-    # Fedora has dbus-broker and no dbus-run-session: the headless shell
-    # uses the session bus of the owner.
-    "${SSH[@]}" "export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/\$(id -u)/bus; timeout 180 bash -c '
-        gnome-shell --headless --virtual-monitor 1280x800 --unsafe-mode > /tmp/nida-shell.log 2>&1 &
-        pid=\$!
-        for i in \$(seq 1 40); do
-            sleep 3
-            gnome-extensions info nidaos@nidaos.local 2> /dev/null | grep -Eq \"State: (ACTIVE|ENABLED)\" && break
-        done
-        gnome-extensions info nidaos@nidaos.local
-        sleep 10
-        gdbus call --session --dest org.gnome.Shell.Screenshot --object-path /org/gnome/Shell/Screenshot \
-            --method org.gnome.Shell.Screenshot.Screenshot false false /tmp/nida-desktop.png || true
-        kill \$pid
-        grep -i -B2 -A8 -e nidaos -e \"JS ERROR\" /tmp/nida-shell.log | head -n 80'" > desktop-shell.log 2>&1
-    scp -q -P 2222 -i id_test -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        nida@127.0.0.1:/tmp/nida-desktop.png screen-nida-desktop.png 2> /dev/null || true
+    scp -q -P 2222 -i id_test -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null         "$REPO/scripts/desktop-check.sh" nida@127.0.0.1:/tmp/desktop-check.sh &&
+        "${SSH[@]}" "timeout 240 bash /tmp/desktop-check.sh" > desktop-shell.log 2>&1
+    scp -q -P 2222 -i id_test -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null         nida@127.0.0.1:/tmp/nida-desktop.png screen-nida-desktop.png 2> /dev/null || true
     grep -Eq "State: (ACTIVE|ENABLED)" desktop-shell.log
 }
 expect "the image has the NidaOS extension, on for each user" desktop_installed

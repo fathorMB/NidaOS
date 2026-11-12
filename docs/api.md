@@ -138,7 +138,7 @@ Each error has this body:
 | Method and path | Section |
 | --- | --- |
 | `GET /healthz`, `GET /readyz`, `GET /api/v1/health` | 4.1 |
-| `GET /api/v1/state`, `/system`, `/disks`, `/tiers` | 4.2 |
+| `GET /api/v1/state`, `/system`, `/disks`, `/tiers`, `/volumes` | 4.2 |
 | `GET /api/v1/metrics` | 4.3 |
 | `GET /api/v1/metrics/stream` | 5.2 |
 | `GET /api/v1/logs` | 4.4 |
@@ -248,6 +248,16 @@ Each error has this body:
 | `state` | `ready`: the disk of the tier is mounted. `not_mounted`: the plan gives a disk, but it is not mounted on `path`. `no_disk`: the plan gives no disk for the tier. |
 | `device`, `fs_type` | `omitempty`: there is no mount on `path`. |
 | `usage` | `omitempty`: the tier is not `ready`. |
+
+#### `GET /api/v1/volumes`
+
+The volume folders of the storage tiers and their user (milestone M-08). The file program of the desktop shows them: only root can read the folder `volumes` of a tier.
+
+```json
+{"volumes": [{"tier": "standard", "name": "pvc-1a2b_nida-app-blog_data", "path": "/var/nida/standard/volumes/pvc-1a2b_nida-app-blog_data", "kind": "app", "user": "blog"}]}
+```
+
+`kind` is `app`, `database`, `system` or `other`. The response has only the names, not the files.
 
 ### 4.3 The last metric snapshot
 
