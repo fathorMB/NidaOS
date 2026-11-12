@@ -1016,7 +1016,7 @@ extension_active() {
         gdbus call --session --dest org.gnome.Shell.Screenshot --object-path /org/gnome/Shell/Screenshot \
             --method org.gnome.Shell.Screenshot.Screenshot false false /tmp/nida-desktop.png || true
         kill \$pid
-        tail -n 30 /tmp/nida-shell.log'" > desktop-shell.log 2>&1
+        grep -i -B2 -A8 -e nidaos -e \"JS ERROR\" /tmp/nida-shell.log | head -n 80'" > desktop-shell.log 2>&1
     scp -q -P 2222 -i id_test -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
         nida@127.0.0.1:/tmp/nida-desktop.png screen-nida-desktop.png 2> /dev/null || true
     grep -Eq "State: (ACTIVE|ENABLED)" desktop-shell.log

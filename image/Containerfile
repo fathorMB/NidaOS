@@ -72,7 +72,7 @@ RUN dconf update && \
     rpm -q --qf '%{VERSION}' gnome-shell > /usr/lib/nidaos/gnome-version
 
 RUN chmod 0755 /usr/libexec/nidaos/nida-rdp-setup && \
-    systemctl enable k3s.service gdm.service nida-rdp-setup.service gnome-remote-desktop.service nida-core.service nida-firstboot.service nida-firewall.service && \
+    systemctl enable k3s.service gdm.service nida-rdp-setup.service gnome-remote-desktop.service nida-core.service nida-firstboot.service nida-firewall.service nida-tiers.service && \
     systemctl set-default graphical.target
 
 # The build identifier. The update test builds the image two times with
