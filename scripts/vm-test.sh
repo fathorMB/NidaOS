@@ -53,7 +53,7 @@ qemu-img create -q -f qcow2 ssd-a.qcow2 "$SIZE_SSD_A"
 # Remote Desktop (decision D34).
 rm -f id_test id_test.pub
 ssh-keygen -q -t ed25519 -N '' -C nida-vm-test -f id_test
-# owner_password comes from the seed of the installation (see above).
+owner_password=$(head -c 18 /dev/urandom | base64 | tr -d '/+=')
 make_seed() {
     local dir=$1 json=$2
     rm -rf "$dir" && mkdir -p "$dir"
@@ -311,7 +311,7 @@ expect "the standard volume is on the standard disk" \
 echo "==> Examine the core service and the nida command (M-02)"
 CORE=http://127.0.0.1:8470
 journal_marker="nida-journal-proof-$(head -c 6 /dev/urandom | od -An -tx1 | tr -d ' \n')"
-owner_password=$(head -c 18 /dev/urandom | base64 | tr -d '/+=')
+# owner_password comes from the seed of the installation (see above).
 
 # Run a check again until it passes, for a maximum of $1 seconds.
 retry() {

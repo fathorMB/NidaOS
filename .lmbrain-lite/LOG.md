@@ -176,3 +176,4 @@ One line per action. Format: `timestamp | by:<who> | <target or -> | <kind> | <m
 2026-11-11T23:27 | by:lead | M-06 | code-note | Wrote the code notes: 6 steps.
 2026-11-12T00:03 | by:lead | M-06 | note | The lead opened the pull request 5 (m06-console to main) for the milestone M-06.
 2026-11-12T00:19 | by:lead | M-07 | status | approved -> active: M-06 is merged. The operator selected D32, D33 and D34 for M-07.
+2026-11-12T00:43 | by:lead | M-07 | commit | 6964da5 adds nida-installer, the six-step page, the bootc install engine and nida-core firstboot. The Go tests and 13 Vitest tests pass, and the browser test passes the six steps in the demonstration mode.
