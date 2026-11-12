@@ -279,7 +279,8 @@ k3s_port_closed() {
         "${SSH[@]}" "sudo nft list table inet nidaos" > nft.txt &&
         "${SSH[@]}" "sudo k3s kubectl get nodes" > /dev/null
 }
-expect "the home network cannot open the API port of k3s" retry 120 k3s_port_closed
+# k3s needs some minutes after the first start: the check waits for it.
+expect "the home network cannot open the API port of k3s" retry 600 k3s_port_closed
 {
     echo "## firewall"
     "${SSH[@]}" "systemctl status nida-firewall.service --no-pager -n 20" || true
