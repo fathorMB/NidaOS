@@ -177,3 +177,6 @@ One line per action. Format: `timestamp | by:<who> | <target or -> | <kind> | <m
 2026-11-12T00:03 | by:lead | M-06 | note | The lead opened the pull request 5 (m06-console to main) for the milestone M-06.
 2026-11-12T00:19 | by:lead | M-07 | status | approved -> active: M-06 is merged. The operator selected D32, D33 and D34 for M-07.
 2026-11-12T00:43 | by:lead | M-07 | commit | 6964da5 adds nida-installer, the six-step page, the bootc install engine and nida-core firstboot. The Go tests and 13 Vitest tests pass, and the browser test passes the six steps in the demonstration mode.
+2026-11-12T04:33 | by:lead | M-07/T-01 | task | done: The media starts nida-installer and cage with Firefox in its kiosk mode. The screenshot of run 43143657227 shows the install step in full screen, and run 43143657227 passed 125 of 125 checks. — Make the frame of the custom installer program that starts in full screen from the installation media
+2026-11-12T04:33 | by:lead | M-07 | test | Run 43143657227 passed all 125 checks of M-07: the new installer installs without Anaconda in 210 seconds, and the kiosk shows the page in full screen.
+2026-11-12T04:33 | by:lead | M-09 | test | Run 43143677387 passed all 132 checks of M-09: the MCP server, the ask rule, the approval of the owner, the deny rule and the record.
