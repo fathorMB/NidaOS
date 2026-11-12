@@ -997,6 +997,24 @@ expect "the record has the actions of the agent" agent_record
     echo
 } | tee -a report.txt
 
+echo "==> Restore the settings at the first start (M-11)"
+# The path of a new installation: a backup of the settings on the seed
+# volume goes to /var/lib/nidaos/settings-restore.tar.gz, and nida-core
+# firstboot restores it. The test removes the file of the owner password
+# first: the sign-in passes only with the restored file.
+settings_restored() {
+    "${SSH[@]}" "sudo nida-core settings-backup /tmp/nidaos-settings.tar.gz" > settings-restore.log 2>&1 &&
+        "${SSH[@]}" "sudo systemctl stop nida-core.service && sudo mv /var/lib/nidaos/auth.json /tmp/auth.json.old" &&
+        "${SSH[@]}" "sudo install -m 0600 /tmp/nidaos-settings.tar.gz /var/lib/nidaos/settings-restore.tar.gz" &&
+        "${SSH[@]}" "echo '{\"user\":\"nida\",\"groups\":[\"wheel\",\"nida\"]}' | sudo install -m 0600 /dev/stdin /var/lib/nidaos/firstboot.json" &&
+        "${SSH[@]}" "sudo nida-core firstboot" >> settings-restore.log 2>&1 &&
+        "${SSH[@]}" "sudo test -f /var/lib/nidaos/auth.json && sudo test ! -e /var/lib/nidaos/settings-restore.tar.gz" &&
+        "${SSH[@]}" "sudo systemctl start nida-core.service"
+}
+expect "the first start restores a backup of the settings" settings_restored
+expect "the owner signs in with the restored settings" retry 60 installer_password_sign_in
+cat settings-restore.log >> report.txt 2> /dev/null || true
+
 echo "==> Examine the desktop and the RDP service"
 rdp_password=$(head -c 18 /dev/urandom | base64 | tr -d '/+=')
 rdp_listens() {
