@@ -280,6 +280,12 @@ k3s_port_closed() {
         "${SSH[@]}" "sudo k3s kubectl get --raw /readyz" | grep -q ok
 }
 expect "the home network cannot open the API port of k3s" retry 120 k3s_port_closed
+{
+    echo "## firewall"
+    "${SSH[@]}" "systemctl status nida-firewall.service --no-pager -n 20" || true
+    "${SSH[@]}" "sudo nft list table inet nidaos" || true
+    echo "curl to the k3s port from the runner: $(curl -sk --max-time 8 -o /dev/null -w '%{http_code} %{errormsg}' https://127.0.0.1:16443/ 2>&1)"
+} | tee -a report.txt
 expect "the installed system keeps the disk plan" \
     "${SSH[@]}" sudo grep -q '^os=sdc$' /var/lib/nidaos/install-plan.txt
 failures=$((failures + plan_failures))
@@ -683,7 +689,9 @@ command -v psql > /dev/null || apt-get install -y -qq postgresql-client > /dev/n
 expect "a device of the home network connects with verify-full and the NidaOS authority" retry 60 lan_verify_full
 expect "the port of the home network refuses a connection without TLS" lan_plain_refused
 expect "the live metrics show the database" retry 60 db_metrics
-expect "a backup on demand passes" nida_db "backup shop-db --wait"
+# The database can be busy some seconds after the change of the home
+# network: the backup tries again.
+expect "a backup on demand passes" retry 120 nida_db "backup shop-db --wait"
 expect "the service gets the image PostgreSQL 17.7" set_db_images "17=docker.io/library/postgres:17.7-alpine,18=docker.io/library/postgres:18.1-alpine"
 expect "the database controller offers the update to 17.7" retry 120 update_offered
 expect "the minor update to 17.7 passes with a backup before it" db_updated
