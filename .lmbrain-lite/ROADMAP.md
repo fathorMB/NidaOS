@@ -19,7 +19,7 @@ generated: true
 | 8 | M-08 | Monitoring desktop | approved | 0/7 | 0% |
 | 9 | M-09 | Agent access | approved | 0/7 | 0% |
 | 10 | M-10 | Internet gateway on a Raspberry Pi | approved | 0/9 | 0% |
-| 11 | M-11 | Updates, rollback and security | approved | 0/8 | 0% |
+| 11 | M-11 | Updates, rollback and security | active | 5/8 (1 blocked) | 62% |
 | 12 | M-12 | Installation on the real computer | approved | 0/6 | 0% |
 
 ## M-01 — Feasibility proof of the Fedora bootc base
@@ -94,7 +94,7 @@ generated: true
 
 ## M-11 — Updates, rollback and security
 
-- `status`: approved
+- `status`: active
 - `priority`: 11
 - `file`: milestones/M-11.md
 - `outcome`: NidaOS gets signed updates from a registry and can go back to the version before. The system runs with SELinux on and without the shortcuts of the feasibility proof.
