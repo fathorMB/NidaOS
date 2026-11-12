@@ -16,7 +16,7 @@ generated: true
 | 5 | M-05 | GitHub runners and the deploy flow | done | 9/9 | 100% |
 | 6 | M-06 | Web console | done | 10/10 | 100% |
 | 7 | M-07 | Installer with the disk planner | active | 9/10 | 90% |
-| 8 | M-08 | Monitoring desktop | approved | 0/7 | 0% |
+| 8 | M-08 | Monitoring desktop | active | 6/7 (1 blocked) | 86% |
 | 9 | M-09 | Agent access | approved | 0/7 | 0% |
 | 10 | M-10 | Internet gateway on a Raspberry Pi | approved | 0/9 | 0% |
 | 11 | M-11 | Updates, rollback and security | active | 6/8 (1 blocked) | 75% |
@@ -73,7 +73,7 @@ generated: true
 
 ## M-08 — Monitoring desktop
 
-- `status`: approved
+- `status`: active
 - `priority`: 8
 - `file`: milestones/M-08.md
 - `outcome`: The operator connects with Remote Desktop and sees the NidaOS desktop: the monitor, the terminal, the files and the logs, all with live data.
